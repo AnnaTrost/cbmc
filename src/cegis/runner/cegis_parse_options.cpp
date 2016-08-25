@@ -1,6 +1,6 @@
 /*******************************************************************\
 
-Module: CBMC Command Line Option Processing
+Module: CEGIS Command Line Option Processing
 
 Author: Daniel Kroening, kroening@kroening.com
 
@@ -115,21 +115,32 @@ int cegis_parse_optionst::do_bmc(
   return cbmc_parse_optionst::do_bmc(bmc, goto_functions);
 }
 
+/*******************************************************************\
+
+Function: cegis_parse_optionst::help
+
+  Inputs:
+
+ Outputs:
+
+ Purpose: print help
+
+\*******************************************************************/
+
 void cegis_parse_optionst::help()
 {
   std::cout <<
     "\n"
-    "* *   CEGIS " CBMC_VERSION " - Copyright (C) 2001-2014 ";
+    "* *   CEGIS " CBMC_VERSION " - Copyright (C) 2015-2016 ";
 
   std::cout << "(" << (sizeof(void *)*8) << "-bit version)";
 
-  std::cout << "   * *\n";
+  std::cout << "  * *\n";
 
   std::cout <<
-    "* *              Daniel Kroening, Edmund Clarke             * *\n"
-    "* * Carnegie Mellon University, Computer Science Department * *\n"
+    "* *       Matt Lewis, Pascal Kesseli, Daniel Kroening       * *\n"
+    "* *    University of Oxford, Computer Science Department    * *\n"
     "* *                 kroening@kroening.com                   * *\n"
-    "* *        Protected in part by U.S. patent 7,225,417       * *\n"
     "\n"
     "Usage:                                Purpose:\n"
     "\n"

@@ -198,7 +198,7 @@ false
 address_of
 dereference
 C_lvalue #lvalue
-C_cformat #cformat
+C_base #base
 destination
 main
 expression
@@ -732,3 +732,4 @@ verilog_unsigned_vector
 verilog_array
 low
 high
+bswap

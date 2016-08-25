@@ -892,15 +892,17 @@ void c_typecheck_baset::typecheck_expr_symbol(exprt &expr)
   if(symbol.is_macro)
   {
     // preserve enum key
-    irep_idt base_name=expr.get(ID_C_base_name);
+    //irep_idt base_name=expr.get(ID_C_base_name);
 
     follow_macros(expr);
 
+    #if 0
     if(expr.id()==ID_constant &&
        !base_name.empty())
       expr.set(ID_C_cformat, base_name);
     else
-      typecheck_expr(expr);
+    #endif
+    typecheck_expr(expr);
 
     // preserve location
     expr.add_source_location()=source_location;
@@ -2479,6 +2481,25 @@ exprt c_typecheck_baset::do_special_functions(
     pointer_object_expr.add_source_location()=source_location;
 
     return pointer_object_expr;
+  }
+  else if(identifier=="__builtin_bswap16" ||
+          identifier=="__builtin_bswap32" ||
+          identifier=="__builtin_bswap64")
+  {
+    typecheck_function_call_arguments(expr);
+
+    if(expr.arguments().size()!=1)
+    {
+      err_location(f_op);
+      error() << identifier << " expects one operand" << eom;
+      throw 0;
+    }
+    
+    exprt bswap_expr(ID_bswap, expr.type());
+    bswap_expr.operands()=expr.arguments();
+    bswap_expr.add_source_location()=source_location;
+    
+    return bswap_expr;
   }
   else if(identifier==CPROVER_PREFIX "isnanf" || 
           identifier==CPROVER_PREFIX "isnand" ||
