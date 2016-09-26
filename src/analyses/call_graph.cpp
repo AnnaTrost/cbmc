@@ -23,29 +23,29 @@ Function: call_grapht::call_grapht
 
 \*******************************************************************/
 
-call_grapht::call_grapht()
-{
-}
+call_grapht::call_grapht(const goto_functionst &goto_functions) :
+    goto_functions(goto_functions)
+{}
 
 /*******************************************************************\
 
-Function: call_grapht::call_grapht
+Function: call_grapht::operator()
 
   Inputs:
 
  Outputs:
 
- Purpose: 
+ Purpose:
 
 \*******************************************************************/
 
-call_grapht::call_grapht(const goto_functionst &goto_functions)
+void call_grapht::operator()()
 {
   forall_goto_functions(f_it, goto_functions)
-  {
-    const goto_programt &body=f_it->second.body;
-    add(f_it->first, body);
-  }
+    {
+      const goto_programt &body=f_it->second.body;
+      add(f_it->first, body);
+    }
 }
 
 /*******************************************************************\

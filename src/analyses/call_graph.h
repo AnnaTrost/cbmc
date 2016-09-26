@@ -17,8 +17,10 @@ Author: Daniel Kroening, kroening@kroening.com
 class call_grapht
 {
 public:
-  call_grapht();
+  virtual ~call_grapht() {}
   explicit call_grapht(const goto_functionst &);
+
+  void operator()();
 
   void output_dot(std::ostream &out) const;
   void output(std::ostream &out) const;
@@ -27,9 +29,10 @@ public:
   typedef std::multimap<irep_idt, irep_idt> grapht;
   grapht graph;
 
-  void add(const irep_idt &caller, const irep_idt &callee);
+  virtual void add(const irep_idt &caller, const irep_idt &callee);
   
 protected:
+  const goto_functionst &goto_functions;
   void add(const irep_idt &function,
            const goto_programt &body);
 };
