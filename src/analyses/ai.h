@@ -84,7 +84,8 @@ public:
   typedef ai_domain_baset statet;
   typedef goto_programt::const_targett locationt;
 
-  ai_baset()
+  ai_baset(bool _forward=true) :
+      forward(forward)
   {
   }
   
@@ -163,6 +164,7 @@ public:
   }
 
 protected:
+  bool forward;
   // overload to add a factory
   virtual void initialize(const goto_programt &);
   virtual void initialize(const goto_functionst::goto_functiont &);
@@ -253,7 +255,7 @@ class ait:public ai_baset
 {
 public:
   // constructor
-  ait():ai_baset()
+  ait(bool forward=true):ai_baset(forward)
   {
   }
 

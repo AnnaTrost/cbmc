@@ -254,7 +254,6 @@ Function: ai_baset::visit
  Purpose:
 
 \*******************************************************************/
-
 bool ai_baset::visit(
   locationt l,
   working_sett &working_set,
@@ -268,7 +267,10 @@ bool ai_baset::visit(
 
   goto_programt::const_targetst successors;
 
-  goto_program.get_successors(l, successors);
+  if (forward)
+    goto_program.get_successors(l, successors);
+  else
+    goto_program.get_predecessors(l, successors);
 
   for(goto_programt::const_targetst::const_iterator
       it=successors.begin();
@@ -515,7 +517,9 @@ void ai_baset::sequential_fixedpoint(
       it=goto_functions.function_map.begin();
       it!=goto_functions.function_map.end();
       it++)
+  {
     fixedpoint(it->second.body, goto_functions, ns);
+  }
 }
 
 /*******************************************************************\

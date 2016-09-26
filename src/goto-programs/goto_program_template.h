@@ -255,6 +255,14 @@ public:
     const_targett target,
     const_targetst &successors) const;
 
+  void get_predecessors(
+    targett target,
+    targetst &predecessors);
+
+  void get_predecessors(
+    const_targett target,
+    const_targetst &predecessors) const;
+
   void compute_incoming_edges();
 
   //! Insertion that preserves jumps to "target".
@@ -522,6 +530,32 @@ void goto_program_templatet<codeT, guardT>::get_successors(
     if(next!=instructions.end())
       successors.push_back(next);
   }
+}
+
+template <class codeT, class guardT>
+void goto_program_templatet<codeT, guardT>::get_predecessors(
+  targett target,
+  targetst &predecessors)
+{
+  predecessors.clear();
+  if(target==instructions.end()) return;
+
+  const instructiont &i=*target;
+  for(auto t: i.incoming_edges)
+      predecessors.push_back(t);
+}
+
+template <class codeT, class guardT>
+void goto_program_templatet<codeT, guardT>::get_predecessors(
+  const_targett target,
+  const_targetst &predecessors) const
+{
+  predecessors.clear();
+  if(target==instructions.end()) return;
+
+  const instructiont &i=*target;
+  for(auto t: i.incoming_edges)
+    predecessors.push_back(t);
 }
 
 #include <langapi/language_util.h>
