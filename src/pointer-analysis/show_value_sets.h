@@ -18,11 +18,13 @@ class value_set_analysist;
 void show_value_sets(
   ui_message_handlert::uit ui,
   const goto_functionst &goto_functions,
-  const value_set_analysist &value_set_analysis);
+  value_set_analysist &value_set_analysis,
+  const namespacet &ns);
 
 void show_value_sets(
   ui_message_handlert::uit ui,
   const goto_programt &goto_program,
-  const value_set_analysist &value_set_analysis);
+  value_set_analysist &value_set_analysis,
+  const namespacet &ns);
 
 #endif

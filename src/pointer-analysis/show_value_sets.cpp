@@ -28,20 +28,21 @@ Function: show_value_sets
 void show_value_sets(
   ui_message_handlert::uit ui,
   const goto_functionst &goto_functions,
-  const value_set_analysist &value_set_analysis)
+  value_set_analysist &value_set_analysis,
+  const namespacet &ns)
 {
   switch(ui)
   {
   case ui_message_handlert::XML_UI:
     {
       xmlt xml;
-      convert(goto_functions, value_set_analysis, xml);
+      value_set_analysis.convert(ns, goto_functions, xml);
       std::cout << xml << std::endl;
     }
     break;
     
   case ui_message_handlert::PLAIN:
-    value_set_analysis.output(goto_functions, std::cout);
+    value_set_analysis.output(ns, goto_functions, std::cout);
     break;
       
   default:;
@@ -63,20 +64,21 @@ Function: show_value_sets
 void show_value_sets(
   ui_message_handlert::uit ui,
   const goto_programt &goto_program,
-  const value_set_analysist &value_set_analysis)
+  value_set_analysist &value_set_analysis,
+  const namespacet &ns)
 {
   switch(ui)
   {
   case ui_message_handlert::XML_UI:
     {
       xmlt xml;
-      convert(goto_program, value_set_analysis, xml);
+      value_set_analysis.convert(ns, goto_program, xml);
       std::cout << xml << std::endl;
     }
     break;
     
   case ui_message_handlert::PLAIN:
-    value_set_analysis.output(goto_program, std::cout);
+    value_set_analysis.output(ns, goto_program, std::cout);
     break;
       
   default:;

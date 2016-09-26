@@ -34,8 +34,8 @@ public:
 protected:
   track_optionst track_options;
   
-  virtual void initialize(const goto_programt &goto_program, const namespacet &ns);
-  virtual void initialize(const goto_functionst &goto_functions, const namespacet &ns);
+  virtual void initialize(const goto_programt &goto_program);
+  virtual void initialize(const goto_functionst &goto_functions);
   
   bool check_type(const typet &type,
 		  const namespacet &ns);
@@ -74,4 +74,4 @@ public:
   }  
 };
 
-#endif /*CPROVER_POINTER_ANALYSIS_VALUE_PROPAGATION_FI_H_*/
+#endif /*VALUE_PROPAGATION_FUI_H_*/

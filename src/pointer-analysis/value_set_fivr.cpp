@@ -8,7 +8,7 @@ Author: Daniel Kroening, kroening@kroening.com,
 \*******************************************************************/
 
 #include <cassert>
-#include <ostream>
+#include <iostream>
 
 #include <util/symbol_table.h>
 #include <util/simplify_expr.h>
@@ -115,7 +115,7 @@ void value_set_fivrt::output(
     }
     
     out << display_name << " = { ";
-    if(object_map.read().size()!=0) out << "\n      ";
+    if(object_map.read().size()!=0) out << std::endl << "      ";
     
     unsigned width=0;
     
@@ -174,7 +174,7 @@ void value_set_fivrt::output(
         result+='>';
       }
 
-      out << result << '\n';
+      out << result << std::endl;
 
       #if 0
       object_map_dt::validity_rangest::const_iterator vr =
@@ -216,7 +216,7 @@ void value_set_fivrt::output(
       }
     }
 
-    out << " } \n";
+    out << " } " << std::endl;  
   }
 }
 
@@ -1306,9 +1306,12 @@ void value_set_fivrt::assign(
       else
       {
         if (!base_type_eq(rhs.type(), type, ns))
-          throw
-            "type mismatch:\nRHS: "+rhs.type().pretty()+"\n"+
-            "LHS: "+type.pretty();
+        {
+          std::cout << "RHS: " << rhs.type().pretty() << std::endl;
+          std::cout << "LHS: " << type.pretty() << std::endl;
+        }
+        
+        assert(base_type_eq(rhs.type(), type, ns));
       
         if(rhs.id()==ID_struct ||
            rhs.id()==ID_constant)
@@ -1883,9 +1886,10 @@ void value_set_fivrt::apply_code(
     }
   }
   else
-    throw
-      code.pretty()+"\n"+
-      "value_set_fivrt: unexpected statement: "+id2string(statement);
+  {
+    std::cerr << code.pretty() << std::endl;
+    throw "value_set_fivrt: unexpected statement: "+id2string(statement);
+  }
 }
 
 /*******************************************************************\
