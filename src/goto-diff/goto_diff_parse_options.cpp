@@ -33,6 +33,7 @@ Author: Peter Schrammel
 #include <goto-programs/loop_ids.h>
 #include <goto-programs/link_to_library.h>
 #include <goto-programs/remove_returns.h>
+#include <goto-programs/remove_virtual_functions.h>
 
 #include <pointer-analysis/add_failed_symbols.h>
 
@@ -47,6 +48,7 @@ Author: Peter Schrammel
 #include "syntactic_diff.h"
 #include "unified_diff.h"
 #include "change_impact.h"
+#include "semantic_diff.h"
 
 /*******************************************************************\
 
@@ -326,6 +328,14 @@ int goto_diff_parse_optionst::doit()
 
   if(cmdline.isset("show-goto-functions"))
   {
+    remove_virtual_functions(goto_model1);
+    remove_virtual_functions(goto_model2);
+
+    remove_returns(goto_model1);
+    remove_returns(goto_model2);
+
+    goto_model1.goto_functions.update();
+    goto_model2.goto_functions.update();
     //ENHANCE: make UI specific
     std::cout << "*******************************************************\n";
     namespacet ns1(goto_model1.symbol_table);
@@ -336,19 +346,48 @@ int goto_diff_parse_optionst::doit()
     return 0;
   }
 
+  if(cmdline.isset("semantic-diff"))
+  {
+    remove_virtual_functions(goto_model1);
+    remove_virtual_functions(goto_model2);
+
+    //Workaround to avoid deps not propagating between return and end_func
+    remove_returns(goto_model1);
+    remove_returns(goto_model2);
+
+    goto_model1.goto_functions.update();
+    goto_model2.goto_functions.update();
+
+    semantic_diff(goto_model1, goto_model2);
+    return 0;
+  }
+
   if(cmdline.isset("change-impact") ||
      cmdline.isset("forward-impact")||
 	 cmdline.isset("backward-impact"))
   {
+    try{
+
+    remove_virtual_functions(goto_model1);
+    remove_virtual_functions(goto_model2);
+
     //Workaround to avoid deps not propagating between return and end_func
     remove_returns(goto_model1);
     remove_returns(goto_model2);
+
+    goto_model1.goto_functions.update();
+    goto_model2.goto_functions.update();
 
     impact_modet impact_mode =
         cmdline.isset("forward-impact") ?
             FORWARD : (cmdline.isset("backward-impact") ? BACKWARD : BOTH);
     change_impact(goto_model1, goto_model2, impact_mode,
           cmdline.isset("compact-output"));
+    } catch(const std::string& e) {
+      std::cout<<e<<std::endl;
+    } catch(char const * e) {
+      std::cout<<e<<std::endl;
+    }
     return 0;
   }
 

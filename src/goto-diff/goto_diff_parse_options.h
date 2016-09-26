@@ -23,7 +23,7 @@ class optionst;
   "(json-ui)" \
   "(show-goto-functions)" \
   "(verbosity):(version)" \
-  "u(unified)(change-impact)(forward-impact)(backward-impact)" \
+  "u(unified)(change-impact)(forward-impact)(backward-impact)(semantic-diff)" \
   "(compact-output)"
 
 class goto_diff_parse_optionst:

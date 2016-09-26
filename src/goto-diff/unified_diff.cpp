@@ -82,6 +82,84 @@ void unified_difft::get_diff(
     dest);
 }
 
+void unified_difft::get_diff_added(
+  const irep_idt &function,
+  goto_program_difft &dest) const
+{
+  dest.clear();
+
+  differences_mapt::const_iterator entry=
+    differences_map.find(function);
+  if(entry==differences_map.end())
+    return;
+
+  goto_functionst::function_mapt::const_iterator old_fit=
+    old_goto_functions.function_map.find(function);
+  goto_functionst::function_mapt::const_iterator new_fit=
+    new_goto_functions.function_map.find(function);
+
+  if(new_fit==new_goto_functions.function_map.end())
+    return;
+
+  goto_programt empty;
+
+  const goto_programt &old_goto_program=
+    old_fit==old_goto_functions.function_map.end() ?
+    empty :
+    old_fit->second.body;
+  const goto_programt &new_goto_program=
+    new_fit==new_goto_functions.function_map.end() ?
+    empty :
+    new_fit->second.body;
+
+  get_diff(
+    function,
+    old_goto_program,
+    new_goto_program,
+    entry->second,
+    dest,
+    differencet::NEW);
+}
+
+void unified_difft::get_diff_deleted(
+  const irep_idt &function,
+  goto_program_difft &dest) const
+{
+  dest.clear();
+
+  differences_mapt::const_iterator entry=
+    differences_map.find(function);
+  if(entry==differences_map.end())
+    return;
+
+  goto_functionst::function_mapt::const_iterator old_fit=
+    old_goto_functions.function_map.find(function);
+  goto_functionst::function_mapt::const_iterator new_fit=
+    new_goto_functions.function_map.find(function);
+
+  if(old_fit==old_goto_functions.function_map.end())
+    return;
+
+  goto_programt empty;
+
+  const goto_programt &old_goto_program=
+    old_fit==old_goto_functions.function_map.end() ?
+    empty :
+    old_fit->second.body;
+  const goto_programt &new_goto_program=
+    new_fit==new_goto_functions.function_map.end() ?
+    empty :
+    new_fit->second.body;
+
+  get_diff(
+    function,
+    old_goto_program,
+    new_goto_program,
+    entry->second,
+    dest,
+    differencet::DELETED);
+}
+
 /*******************************************************************\
 
 Function: unified_difft::get_diff
@@ -99,7 +177,8 @@ void unified_difft::get_diff(
   const goto_programt &old_goto_program,
   const goto_programt &new_goto_program,
   const differencest &differences,
-  goto_program_difft &dest) const
+  goto_program_difft &dest,
+  differencet mode) const
 {
   goto_programt::instructionst::const_iterator old_it=
     old_goto_program.instructions.begin();
@@ -113,19 +192,22 @@ void unified_difft::get_diff(
     switch(*rit)
     {
       case differencet::SAME:
-        dest.push_back(std::make_pair(new_it, differencet::SAME));
+        if(mode==differencet::SAME)
+          dest.push_back(std::make_pair(new_it, differencet::SAME));
         assert(old_it!=old_goto_program.instructions.end());
         ++old_it;
         assert(new_it!=new_goto_program.instructions.end());
         ++new_it;
         break;
       case differencet::DELETED:
-        dest.push_back(std::make_pair(old_it, differencet::DELETED));
+        if(mode==differencet::SAME || mode==differencet::DELETED)
+          dest.push_back(std::make_pair(old_it, differencet::DELETED));
         assert(old_it!=old_goto_program.instructions.end());
         ++old_it;
         break;
       case differencet::NEW:
-        dest.push_back(std::make_pair(new_it, differencet::NEW));
+        if(mode==differencet::SAME || mode==differencet::NEW)
+          dest.push_back(std::make_pair(new_it, differencet::NEW));
         assert(new_it!=new_goto_program.instructions.end());
         ++new_it;
         break;

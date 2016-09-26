@@ -48,6 +48,14 @@ public:
     const irep_idt &function,
     goto_program_difft &dest) const;
 
+  void get_diff_added(
+      const irep_idt &function,
+      goto_program_difft &dest) const;
+
+  void get_diff_deleted(
+      const irep_idt &function,
+      goto_program_difft &dest) const;
+
 protected:
   const goto_functionst &old_goto_functions;
   const namespacet ns_old;
@@ -75,7 +83,8 @@ protected:
     const goto_programt &old_goto_program,
     const goto_programt &new_goto_program,
     const differencest &differences,
-    goto_program_difft &dest) const;
+    goto_program_difft &dest,
+    differencet mode=differencet::SAME) const;
 
   void output_diff(
     const irep_idt &identifier,
