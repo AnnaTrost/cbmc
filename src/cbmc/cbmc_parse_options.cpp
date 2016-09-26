@@ -71,7 +71,8 @@ Function: cbmc_parse_optionst::cbmc_parse_optionst
 cbmc_parse_optionst::cbmc_parse_optionst(int argc, const char **argv):
   parse_options_baset(CBMC_OPTIONS, argc, argv),
   xml_interfacet(cmdline),
-  language_uit("CBMC " CBMC_VERSION, cmdline)
+  language_uit(cmdline, ui_message_handler),
+  ui_message_handler(cmdline, "CBMC " CBMC_VERSION)
 {
 }
   
@@ -93,7 +94,8 @@ Function: cbmc_parse_optionst::cbmc_parse_optionst
   const std::string &extra_options):
   parse_options_baset(CBMC_OPTIONS+extra_options, argc, argv),
   xml_interfacet(cmdline),
-  language_uit("CBMC " CBMC_VERSION, cmdline)
+  language_uit(cmdline, ui_message_handler),
+  ui_message_handler(cmdline, "CBMC " CBMC_VERSION)
 {
 }
 
