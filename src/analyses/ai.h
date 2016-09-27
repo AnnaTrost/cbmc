@@ -85,7 +85,7 @@ public:
   typedef goto_programt::const_targett locationt;
 
   ai_baset(bool _forward=true) :
-      forward(forward)
+      forward(_forward)
   {
   }
   
