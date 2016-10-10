@@ -14,7 +14,7 @@ Date: August 2016
 class goto_modelt;
 
 void semantic_diff(
-  const goto_modelt &model_old,
-  const goto_modelt &model_new);
+  goto_modelt &model_old,
+  goto_modelt &model_new);
 
 #endif

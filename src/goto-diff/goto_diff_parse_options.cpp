@@ -342,6 +342,9 @@ int goto_diff_parse_optionst::doit()
     remove_virtual_functions(goto_model1);
     remove_virtual_functions(goto_model2);
 
+    remove_function_pointers(goto_model1,false);
+    remove_function_pointers(goto_model2,false);
+
     remove_returns(goto_model1);
     remove_returns(goto_model2);
 
@@ -361,13 +364,22 @@ int goto_diff_parse_optionst::doit()
   {
     remove_virtual_functions(goto_model1);
     remove_virtual_functions(goto_model2);
+    std::cout << "remove_virtual_functions\n";
+
+    remove_function_pointers(goto_model1,false);
+    remove_function_pointers(goto_model2,false);
+    std::cout << "remove_function_pointers\n";
 
     //Workaround to avoid deps not propagating between return and end_func
     remove_returns(goto_model1);
     remove_returns(goto_model2);
+    std::cout << "remove_returns\n";
+
 
     goto_model1.goto_functions.update();
     goto_model2.goto_functions.update();
+    std::cout << "update\n";
+
 
     semantic_diff(goto_model1, goto_model2);
     return 0;
@@ -381,6 +393,9 @@ int goto_diff_parse_optionst::doit()
 
     remove_virtual_functions(goto_model1);
     remove_virtual_functions(goto_model2);
+
+    remove_function_pointers(goto_model1,false);
+    remove_function_pointers(goto_model2,false);
 
     //Workaround to avoid deps not propagating between return and end_func
     remove_returns(goto_model1);

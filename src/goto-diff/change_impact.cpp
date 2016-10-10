@@ -9,14 +9,29 @@ Date: April 2016
 \*******************************************************************/
 
 #include <iostream>
+#include <string>
+#include <set>
 
 #include <goto-programs/goto_model.h>
 
 #include <analyses/dependence_graph.h>
 
+#include <analyses/is_threaded.h>
+#include <analyses/dirty.h>
+#include <analyses/flow_insensitive_analysis.h>
+#include <analyses/local_reaching_definitions.h>
+#include <analyses/reaching_definitions.h>
+
+#include <util/time_stopping.h>
+
+
+#include <pointer-analysis/value_set_domain_fi.h>
+
 #include "unified_diff.h"
+#include "bt_call_graph.h"
 
 #include "change_impact.h"
+
 #if 0
   struct cfg_nodet
   {
@@ -259,6 +274,29 @@ protected:
   dependence_grapht old_dep_graph;
   dependence_grapht new_dep_graph;
 
+  bt_call_grapht old_call_graph;
+  bt_call_grapht new_call_graph;
+
+  class statisticst
+  {
+  public:
+	  statisticst() :
+		  added_lines(0), removed_lines(0), affected_lines(0),
+		  added_functions(0), removed_functions(0), changed_functions(0),
+		  affected_functions(0) {}
+	  std::set<irep_idt> files_affected;
+	  unsigned added_lines;
+	  unsigned removed_lines;
+	  unsigned affected_lines;
+	  unsigned added_functions;
+	  unsigned removed_functions;
+	  unsigned changed_functions;
+	  unsigned affected_functions;
+  };
+
+  friend std::ostream& operator<<(std::ostream& os, const statisticst& st);
+  statisticst statistics;
+
   typedef enum
   {
     SAME=0,
@@ -270,7 +308,13 @@ protected:
     DEL_CTRL_DEP=1<<5
   } mod_flagt;
 
-  typedef std::map<goto_programt::const_targett, unsigned>
+  class impact {
+  public:
+    unsigned type;
+    bool is_ancestor;
+  };
+
+  typedef std::map<goto_programt::const_targett, impact>
     goto_program_change_impactt;
   typedef std::map<irep_idt, goto_program_change_impactt>
     goto_functions_change_impactt;
@@ -284,20 +328,24 @@ protected:
     const goto_programt &new_goto_program,
     const unified_difft::goto_program_difft &diff,
     goto_program_change_impactt &old_impact,
-    goto_program_change_impactt &new_impact);
+    goto_program_change_impactt &new_impact,
+    const std::set<irep_idt> &old_ancestors,
+    const std::set<irep_idt> &new_ancestors);
 
   void propogate_dep_back(const dependence_grapht::nodet &d_node,
   		const dependence_grapht &dep_graph,
-  		goto_functions_change_impactt &change_impact, bool del);
+  		goto_functions_change_impactt &change_impact, bool del,
+  		const std::set<irep_idt> &ancestors);
   void propogate_dep_forward(const dependence_grapht::nodet &d_node,
   		const dependence_grapht &dep_graph,
-  		goto_functions_change_impactt &change_impact, bool del);
+  		goto_functions_change_impactt &change_impact, bool del,
+  		const std::set<irep_idt> &ancestors);
 
   void output_change_impact(
     const irep_idt &function,
     const goto_program_change_impactt &c_i,
     const goto_functionst &goto_functions,
-    const namespacet &ns) const;
+    const namespacet &ns);
   void output_change_impact(
     const irep_idt &function,
     const goto_program_change_impactt &o_c_i,
@@ -305,13 +353,17 @@ protected:
     const namespacet &o_ns,
     const goto_program_change_impactt &n_c_i,
     const goto_functionst &n_goto_functions,
-    const namespacet &n_ns) const;
+    const namespacet &n_ns);
 
   void output_instruction(char prefix,
       const goto_programt &goto_program,
       const namespacet &ns,
       const irep_idt &function,
-      goto_programt::const_targett& target) const;
+      goto_programt::const_targett& target,
+      bool is_ancestor) const;
+
+  void update_statistics(char prefix, const goto_programt::const_targett& target);
+  void update_statistics(char prefix);
 };
 
 /*******************************************************************\
@@ -339,16 +391,17 @@ change_impactt::change_impactt(
   ns_new(model_new.symbol_table),
   unified_diff(model_old, model_new),
   old_dep_graph(ns_old),
-  new_dep_graph(ns_new)
+  new_dep_graph(ns_new),
+  old_call_graph(old_goto_functions),
+  new_call_graph(new_goto_functions)
 {
   // syntactic difference?
   if(!unified_diff())
     return;
-
-  // compute program dependence graph of old code
+//  local_reaching_definitions_analysist rd(ns_old);
+//  rd(old_goto_functions,ns_old);
+//  rd.output(ns_old,old_goto_functions,std::cout);
   old_dep_graph(old_goto_functions, ns_old);
-
-  // compute program dependence graph of new code
   new_dep_graph(new_goto_functions, ns_new);
 }
 
@@ -372,6 +425,7 @@ void change_impactt::change_impact(const irep_idt &function)
   if(diff.empty())
     return;
 
+
   goto_functionst::function_mapt::const_iterator old_fit=
     old_goto_functions.function_map.find(function);
   goto_functionst::function_mapt::const_iterator new_fit=
@@ -393,7 +447,9 @@ void change_impactt::change_impact(const irep_idt &function)
     new_goto_program,
     diff,
     old_change_impact[function],
-    new_change_impact[function]);
+    new_change_impact[function],
+    old_call_graph.get_ancestors(function),
+    new_call_graph.get_ancestors(function));
 }
 
 /*******************************************************************\
@@ -413,7 +469,9 @@ void change_impactt::change_impact(
   const goto_programt &new_goto_program,
   const unified_difft::goto_program_difft &diff,
   goto_program_change_impactt &old_impact,
-  goto_program_change_impactt &new_impact)
+  goto_program_change_impactt &new_impact,
+  const set<irep_idt> &old_ancestors,
+  const set<irep_idt> &new_ancestors)
 {
   goto_programt::const_targett o_it=
     old_goto_program.instructions.begin();
@@ -427,10 +485,10 @@ void change_impactt::change_impact(
       case unified_difft::differencet::SAME:
         assert(o_it!=old_goto_program.instructions.end());
         assert(n_it!=new_goto_program.instructions.end());
-        old_impact[o_it]|=SAME;
+        old_impact[o_it].type|=SAME;
         ++o_it;
         assert(n_it==d.first);
-        new_impact[n_it]|=SAME;
+        new_impact[n_it].type|=SAME;
         ++n_it;
         break;
       case unified_difft::differencet::DELETED:
@@ -441,11 +499,11 @@ void change_impactt::change_impact(
             old_dep_graph[old_dep_graph[o_it].get_node_id()];
 
           if(impact_mode == BACKWARD || impact_mode == BOTH)
-            propogate_dep_back(d_node, old_dep_graph, old_change_impact, true);
+            propogate_dep_back(d_node, old_dep_graph, old_change_impact, true, old_ancestors);
           if(impact_mode == FORWARD || impact_mode == BOTH)
-            propogate_dep_forward(d_node, old_dep_graph, old_change_impact, true);
+            propogate_dep_forward(d_node, old_dep_graph, old_change_impact, true, old_ancestors);
         }
-        old_impact[o_it]|=DELETED;
+        old_impact[o_it].type|=DELETED;
         ++o_it;
         break;
       case unified_difft::differencet::NEW:
@@ -453,14 +511,14 @@ void change_impactt::change_impact(
         assert(n_it==d.first);
         {
           const dependence_grapht::nodet &d_node=
-            new_dep_graph[new_dep_graph[n_it].get_node_id()];
+              new_dep_graph[new_dep_graph[n_it].get_node_id()];
 
           if(impact_mode == BACKWARD || impact_mode == BOTH)
-            propogate_dep_back(d_node, new_dep_graph, new_change_impact, false);
+            propogate_dep_back(d_node, new_dep_graph, new_change_impact, false, new_ancestors);
           if(impact_mode == FORWARD || impact_mode == BOTH)
-            propogate_dep_forward(d_node, new_dep_graph, new_change_impact, false);
+            propogate_dep_forward(d_node, new_dep_graph, new_change_impact, false, new_ancestors);
         }
-        new_impact[n_it]|=NEW;
+        new_impact[n_it].type|=NEW;
         ++n_it;
         break;
     }
@@ -482,7 +540,9 @@ Function: change_impactt::propogate_dep_forward
 
 void change_impactt::propogate_dep_forward(const dependence_grapht::nodet &d_node,
 		const dependence_grapht &dep_graph,
-		goto_functions_change_impactt &change_impact, bool del) {
+		goto_functions_change_impactt &change_impact, bool del,
+		const std::set<irep_idt> &ancestors) {
+
   for(dependence_grapht::edgest::const_iterator it = d_node.out.begin();
       it != d_node.out.end(); ++it)
   {
@@ -491,16 +551,24 @@ void change_impactt::propogate_dep_forward(const dependence_grapht::nodet &d_nod
     mod_flagt data_flag = del ? DEL_DATA_DEP : NEW_DATA_DEP;
     mod_flagt ctrl_flag = del ? DEL_CTRL_DEP : NEW_CTRL_DEP;
 
-    if((change_impact[src->function][src] & data_flag)
-        || (change_impact[src->function][src] & ctrl_flag))
+    irep_idt to_function=src->function;
+    if(((change_impact[src->function][src].type & data_flag)
+        || (change_impact[src->function][src].type & ctrl_flag))
+        && (change_impact[src->function][src].is_ancestor
+            || ancestors.find(to_function)==ancestors.end()))
       continue;
+
     if(it->second.get() == dep_edget::DATA
         || it->second.get() == dep_edget::BOTH)
-      change_impact[src->function][src] |= data_flag;
+      change_impact[src->function][src].type |= data_flag;
     else
-      change_impact[src->function][src] |= ctrl_flag;
+      change_impact[src->function][src].type |= ctrl_flag;
+
+    change_impact[src->function][src].is_ancestor=ancestors.find(
+        to_function)!=ancestors.end();
+
     propogate_dep_forward(dep_graph[dep_graph[src].get_node_id()], dep_graph,
-        change_impact, del);
+        change_impact, del, ancestors);
   }
 }
 
@@ -518,7 +586,8 @@ Function: change_impactt::propogate_dep_back
 
 void change_impactt::propogate_dep_back(const dependence_grapht::nodet &d_node,
 		const dependence_grapht &dep_graph,
-		goto_functions_change_impactt &change_impact, bool del) {
+		goto_functions_change_impactt &change_impact, bool del,
+		const std::set<irep_idt> &ancestors) {
   for(dependence_grapht::edgest::const_iterator it = d_node.in.begin();
       it != d_node.in.end(); ++it)
   {
@@ -527,19 +596,26 @@ void change_impactt::propogate_dep_back(const dependence_grapht::nodet &d_node,
     mod_flagt data_flag = del ? DEL_DATA_DEP : NEW_DATA_DEP;
     mod_flagt ctrl_flag = del ? DEL_CTRL_DEP : NEW_CTRL_DEP;
 
-    if((change_impact[src->function][src] & data_flag)
-        || (change_impact[src->function][src] & ctrl_flag))
+    irep_idt to_function=src->function;
+    if(((change_impact[src->function][src].type & data_flag)
+        || (change_impact[src->function][src].type & ctrl_flag))
+        && (change_impact[src->function][src].is_ancestor
+            || ancestors.find(to_function)==ancestors.end()))
     {
       continue;
     }
+
     if(it->second.get() == dep_edget::DATA
         || it->second.get() == dep_edget::BOTH)
-      change_impact[src->function][src] |= data_flag;
+      change_impact[src->function][src].type |= data_flag;
     else
-      change_impact[src->function][src] |= ctrl_flag;
+      change_impact[src->function][src].type |= ctrl_flag;
+
+    change_impact[src->function][src].is_ancestor=ancestors.find(
+        to_function)!=ancestors.end();
 
     propogate_dep_back(dep_graph[dep_graph[src].get_node_id()], dep_graph,
-        change_impact, del);
+        change_impact, del, ancestors);
   }
 }
 
@@ -575,13 +651,22 @@ void change_impactt::operator()()
       ++itn)
   {
     while(ito!=old_funcs.end() && ito->first<itn->first)
-      ++ito;
+    {
+    	statistics.removed_functions++;
+    	change_impact(ito->first);
+    	++ito;
+    }
 
     if(ito!=old_funcs.end() && itn->first==ito->first)
     {
       change_impact(itn->first);
 
       ++ito;
+    }
+    else
+    {
+    	statistics.added_functions++;
+    	change_impact(itn->first);
     }
   }
 
@@ -611,6 +696,20 @@ void change_impactt::operator()()
     {
       assert(oc_it->first==nc_it->first);
 
+      if(old_goto_functions.function_map.find(nc_it->first)==old_goto_functions.function_map.end())
+    	  output_change_impact(
+    	      	          nc_it->first,
+    	      	          nc_it->second,
+    	      	          new_goto_functions,
+    	      	          ns_new);
+
+      else if(new_goto_functions.function_map.find(nc_it->first)==new_goto_functions.function_map.end())
+    	  output_change_impact(
+    	      	          oc_it->first,
+    	      	          oc_it->second,
+    	      	          old_goto_functions,
+    	      	          ns_old);
+      else
       output_change_impact(
         nc_it->first,
         oc_it->second,
@@ -623,6 +722,7 @@ void change_impactt::operator()()
       ++oc_it;
     }
   }
+  std::cout << statistics <<std::endl;
 }
 
 /*******************************************************************\
@@ -641,7 +741,7 @@ void change_impactt::output_change_impact(
   const irep_idt &function,
   const goto_program_change_impactt &c_i,
   const goto_functionst &goto_functions,
-  const namespacet &ns) const
+  const namespacet &ns)
 {
   goto_functionst::function_mapt::const_iterator f_it=
     goto_functions.function_map.find(function);
@@ -656,7 +756,9 @@ void change_impactt::output_change_impact(
     goto_program_change_impactt::const_iterator c_entry=
       c_i.find(target);
     const unsigned mod_flags=
-      c_entry==c_i.end() ? SAME : c_entry->second;
+      c_entry==c_i.end() ? SAME : c_entry->second.type;
+    bool is_ancestor=
+        c_entry==c_i.end() ? false : c_entry->second.is_ancestor;
 
     char prefix;
     // syntactic changes are preferred over data/control-dependence
@@ -677,8 +779,9 @@ void change_impactt::output_change_impact(
       prefix='c';
     else
       assert(false);
+    update_statistics(prefix, target);
 
-    output_instruction(prefix, goto_program, ns, function, target);
+    output_instruction(prefix, goto_program, ns, function, target, is_ancestor);
   }
 }
 
@@ -701,7 +804,7 @@ void change_impactt::output_change_impact(
   const namespacet &o_ns,
   const goto_program_change_impactt &n_c_i,
   const goto_functionst &n_goto_functions,
-  const namespacet &n_ns) const
+  const namespacet &n_ns)
 {
   goto_functionst::function_mapt::const_iterator o_f_it=
     o_goto_functions.function_map.find(function);
@@ -716,6 +819,9 @@ void change_impactt::output_change_impact(
   if(!compact_output)
     std::cout << "/** " << function << " **/\n";
 
+  bool changed_function = false;
+  bool affected_function = false;
+
   goto_programt::const_targett o_target=
     old_goto_program.instructions.begin();
   forall_goto_program_instructions(target, goto_program)
@@ -723,11 +829,15 @@ void change_impactt::output_change_impact(
     goto_program_change_impactt::const_iterator o_c_entry=
       o_c_i.find(o_target);
     const unsigned old_mod_flags=
-      o_c_entry==o_c_i.end() ? SAME : o_c_entry->second;
+      o_c_entry==o_c_i.end() ? SAME : o_c_entry->second.type;
+    bool old_is_ancestor=
+      o_c_entry==o_c_i.end() ? false : o_c_entry->second.is_ancestor;
 
     if(old_mod_flags&DELETED)
     {
-      output_instruction('-', goto_program, o_ns, function, o_target);
+      changed_function = true;
+      update_statistics('-');
+      output_instruction('-', goto_program, o_ns, function, o_target, old_is_ancestor);
       ++o_target;
       --target;
       continue;
@@ -736,7 +846,9 @@ void change_impactt::output_change_impact(
     goto_program_change_impactt::const_iterator c_entry=
       n_c_i.find(target);
     const unsigned mod_flags=
-      c_entry==n_c_i.end() ? SAME : c_entry->second;
+      c_entry==n_c_i.end() ? SAME : c_entry->second.type;
+    bool is_ancestor=
+      c_entry==n_c_i.end() ? false : c_entry->second.is_ancestor;
 
     char prefix;
     // syntactic changes are preferred over data/control-dependence
@@ -779,7 +891,13 @@ void change_impactt::output_change_impact(
     else
       assert(false);
 
-    output_instruction(prefix, goto_program, n_ns, function, target);
+    if(prefix=='+' || prefix=='-')
+    	changed_function = true;
+    if(prefix=='D' || prefix=='C'
+    		|| prefix=='d' || prefix=='c')
+        affected_function = true;
+    update_statistics(prefix, target);
+    output_instruction(prefix, goto_program, n_ns, function, target,is_ancestor);
   }
   for( ;
       o_target!=old_goto_program.instructions.end();
@@ -788,7 +906,9 @@ void change_impactt::output_change_impact(
     goto_program_change_impactt::const_iterator o_c_entry=
       o_c_i.find(o_target);
     const unsigned old_mod_flags=
-      o_c_entry==o_c_i.end() ? SAME : o_c_entry->second;
+      o_c_entry==o_c_i.end() ? SAME : o_c_entry->second.type;
+    bool old_is_ancestor=
+      o_c_entry==o_c_i.end() ? false : o_c_entry->second.is_ancestor;
 
     char prefix;
     // syntactic changes are preferred over data/control-dependence
@@ -806,8 +926,19 @@ void change_impactt::output_change_impact(
     else
       assert(false);
 
-    output_instruction(prefix, goto_program, o_ns, function, o_target);
+    if(prefix=='+' || prefix=='-')
+    	changed_function = true;
+    if(prefix=='D' || prefix=='C'
+    		|| prefix=='d' || prefix=='c')
+        affected_function = true;
+    update_statistics(prefix);
+
+    output_instruction(prefix, goto_program, o_ns, function, o_target, old_is_ancestor);
   }
+  if(changed_function)
+  	  statistics.changed_functions++;
+    else if(affected_function)
+  	  statistics.affected_functions++;
 }
 
 /*******************************************************************\
@@ -826,7 +957,8 @@ void change_impactt::output_instruction(char prefix,
     const goto_programt &goto_program,
     const namespacet &ns,
     const irep_idt &function,
-    goto_programt::const_targett& target) const
+    goto_programt::const_targett& target,
+    bool is_ancestor) const
 {
   if(compact_output)
   {
@@ -834,14 +966,75 @@ void change_impactt::output_instruction(char prefix,
       return;
     const irep_idt &file=target->source_location.get_file();
     const irep_idt &line=target->source_location.get_line();
-    if (!file.empty() && !line.empty())
-      std::cout << prefix << " " << id2string(file)
-          << " " << id2string(line) << std::endl;
+    if(!file.empty() && !line.empty())
+    {
+      if(prefix=='+' || prefix=='-')
+        std::cout << prefix << " " << id2string(file)
+            << " " << id2string(line) << std::endl;
+      else
+        std::cout << prefix << " " << id2string(file) << " "
+            << id2string(line) << " " << is_ancestor << std::endl;
+    }
   } else
   {
     std::cout << prefix;
     goto_program.output_instruction(ns, function, std::cout, target);
   }
+}
+
+void change_impactt::update_statistics(char prefix,
+		const goto_programt::const_targett& target) {
+	update_statistics(prefix);
+	const irep_idt &file = target->source_location.get_file();
+	if (!file.empty())
+		statistics.files_affected.insert(file);
+}
+
+void change_impactt::update_statistics(char prefix)
+{
+	switch (prefix)
+	{
+	case '+':
+		statistics.added_lines++;
+		break;
+	case '-':
+		statistics.removed_lines++;
+		break;
+	case 'D':
+	case 'C':
+	case 'd':
+	case 'c':
+		statistics.affected_lines++;
+		break;
+	}
+}
+
+
+/*******************************************************************\
+
+Function: operator<<
+
+  Inputs:
+
+ Outputs:
+
+ Purpose:
+
+\*******************************************************************/
+
+std::ostream& operator<<(std::ostream& os,
+		const change_impactt::statisticst& st) {
+	os << "/***********************************************\n"
+			"Summary:\n"
+			"	# files_affected: " << st.files_affected.size() << "\n"
+		    "	# lines_added: " << st.added_lines << "\n"
+			"	# lines_removed: " << st.removed_lines << "\n"
+			"	# lines_affected: " << st.affected_lines << "\n"
+			"	# functions_added: " << st.added_functions << "\n"
+			"	# functions_removed: " << st.removed_functions << "\n"
+			"	# functions_changed: " << st.changed_functions << "\n"
+			"	# functions_affected: " << st.affected_functions << "\n"
+			<<"********************************************/ \n";
 }
 
 /*******************************************************************\
@@ -863,5 +1056,5 @@ void change_impact(
   bool compact_output)
 {
   change_impactt c(model_old, model_new, impact_mode, compact_output);
-  c();
+//  c();
 }

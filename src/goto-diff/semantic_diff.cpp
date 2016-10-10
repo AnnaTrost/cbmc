@@ -14,6 +14,7 @@
 
 #include <goto-programs/goto_model.h>
 #include <analyses/dependence_graph.h>
+#include <analyses/interval_analysis.h>
 
 #include "semantic_diff.h"
 #include "unified_diff.h"
@@ -31,27 +32,27 @@ using std::list;
 class semantic_difft
 {
 public:
-  semantic_difft(const goto_modelt &model_old,
-      const goto_modelt &model_new);
+  semantic_difft(goto_modelt &model_old,
+      goto_modelt &model_new);
 
   void operator()();
 
 protected:
   /******************** Fields ********************/
 
-  const goto_functionst &old_goto_functions;
+  goto_functionst &old_goto_functions;
   const namespacet ns_old;
-  bt_call_grapht old_call_graph;
-  const goto_functionst &new_goto_functions;
+//  bt_call_grapht old_call_graph;
+  goto_functionst &new_goto_functions;
   const namespacet ns_new;
-  bt_call_grapht new_call_graph;
+//  bt_call_grapht new_call_graph;
 
   map<irep_idt, differential_summaryt> summaries;
 
   unified_difft unified_diff;
 
-  dependence_grapht old_dep_graph;
-  dependence_grapht new_dep_graph;
+//  dependence_grapht old_dep_graph;
+//  dependence_grapht new_dep_graph;
 
   //caching visited locations in the change impact
   set<pair<irep_idt,unsigned>> affected_locations;
@@ -87,23 +88,23 @@ protected:
 
  \*******************************************************************/
 
-semantic_difft::semantic_difft(const goto_modelt &model_old,
-    const goto_modelt &model_new) :
+semantic_difft::semantic_difft(goto_modelt &model_old,
+    goto_modelt &model_new) :
     old_goto_functions(model_old.goto_functions), ns_old(
-        model_old.symbol_table), old_call_graph(old_goto_functions), new_goto_functions(
-        model_new.goto_functions), ns_new(model_new.symbol_table), new_call_graph(
-        new_goto_functions), unified_diff(model_old, model_new), old_dep_graph(
-        ns_old), new_dep_graph(ns_new)
+        model_old.symbol_table), new_goto_functions(
+        model_new.goto_functions), ns_new(model_new.symbol_table), unified_diff(model_old, model_new)
 {
+
+//  interval_analysis(ns_old,old_goto_functions);
   // syntactic difference?
   if(!unified_diff())
     return;
 
   // compute program dependence graph of old code
-  old_dep_graph(old_goto_functions, ns_old);
+//  old_dep_graph(old_goto_functions, ns_old);
 
   // compute program dependence graph of new code
-  new_dep_graph(new_goto_functions, ns_new);
+//  new_dep_graph(new_goto_functions, ns_new);
 }
 
 void semantic_difft::initialize(list<irep_idt> &workset)
@@ -241,8 +242,8 @@ void semantic_difft::mark_affected(
   goto_programt::const_targett n_it=
     new_goto_program.instructions.begin();
 
-  set<irep_idt> old_ancestors=old_call_graph.get_ancestors(function);
-  set<irep_idt> new_ancestors=new_call_graph.get_ancestors(function);
+//  set<irep_idt> old_ancestors=old_call_graph.get_ancestors(function);
+//  set<irep_idt> new_ancestors=new_call_graph.get_ancestors(function);
 
   for(const auto &d : diff)
   {
@@ -258,19 +259,28 @@ void semantic_difft::mark_affected(
       case unified_difft::differencet::DELETED:
         assert(o_it!=old_goto_program.instructions.end());
         assert(o_it==d.first);
-        propogate_forward(
-          old_dep_graph[old_dep_graph[o_it].get_node_id()],
-          old_dep_graph,
-          old_ancestors);
+//        for(irep_idt ancestor : old_ancestors)
+//        {
+//          add_summary(ancestor, differential_summaryt::AFFECTED);
+//        }
+
+//        propogate_forward(
+//          old_dep_graph[old_dep_graph[o_it].get_node_id()],
+//          old_dep_graph,
+//          old_ancestors);
         ++o_it;
         break;
       case unified_difft::differencet::NEW:
         assert(n_it!=new_goto_program.instructions.end());
         assert(n_it==d.first);
-        propogate_forward(
-          new_dep_graph[new_dep_graph[n_it].get_node_id()],
-          new_dep_graph,
-          new_ancestors);
+//        for(irep_idt ancestor : new_ancestors)
+//        {
+//          add_summary(ancestor, differential_summaryt::AFFECTED);
+//        }
+        //        propogate_forward(
+//          new_dep_graph[new_dep_graph[n_it].get_node_id()],
+//          new_dep_graph,
+//          new_ancestors);
         ++n_it;
         break;
     }
@@ -408,8 +418,8 @@ void semantic_difft::operator()()
     if(old_summary!=new_summary)
     {
       summaries[curr]=new_summary;
-      for(irep_idt caller : new_call_graph.get_callers(curr))
-        workset.push_back(caller);
+//      for(irep_idt caller : new_call_graph.get_callers(curr))
+//        workset.push_back(caller);
     }
   }
 
@@ -427,9 +437,10 @@ void semantic_difft::operator()()
 
  \*******************************************************************/
 
-void semantic_diff(const goto_modelt &model_old,
-    const goto_modelt &model_new)
+void semantic_diff(goto_modelt &model_old,
+    goto_modelt &model_new)
 {
   semantic_difft sd(model_old,model_new);
-  sd();
+//  sd();
+
 }
