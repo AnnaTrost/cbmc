@@ -51,6 +51,7 @@ public:
   
   locst(const namespacet &_ns);
   void build(const goto_functionst &goto_functions);
+  void build(const goto_functionst &goto_functions,const irep_idt &entry_point);
   void output(std::ostream &out) const;
   
   inline loct &operator[] (loc_reft l)

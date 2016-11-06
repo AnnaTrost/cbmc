@@ -301,7 +301,7 @@ Function: path_symext::assign_rec
  Purpose:
 
 \*******************************************************************/
-
+#include <iostream>
 void path_symext::assign_rec(
   path_symex_statet &state,
   exprt::operandst &guard, 
@@ -362,7 +362,8 @@ void path_symext::assign_rec(
         std::cout << "ssa_rhs: " << ssa_rhs.pretty() << std::endl;
         std::cout << "new_lhs: " << new_lhs.pretty() << std::endl;
         #endif
-        throw "assign_rec got different types";
+        new_lhs.type()=ssa_rhs.type();
+//        throw "assign_rec got different types";
       }
 
       // record the step
@@ -413,7 +414,8 @@ void path_symext::assign_rec(
       assign_rec(state, guard, new_lhs, ssa_rhs);
     }
     else
-      throw "assign_rec: member expects struct or union type";
+      assign_rec(state, guard, struct_op, ssa_rhs);
+//      throw "assign_rec: member expects struct or union type";
   }
   else if(ssa_lhs.id()==ID_index)
   {
@@ -554,6 +556,9 @@ void path_symext::assign_rec(
   else
   {
     // ignore
+    std::cout << from_expr(state.var_map.ns,"",ssa_lhs)<<std::endl;
+    std::cout << from_expr(state.var_map.ns,"",ssa_rhs)<<std::endl;
+
     throw "path_symext::assign_rec(): unexpected lhs: "+ssa_lhs.id_string();
   }
 }
@@ -1042,6 +1047,10 @@ void path_symext::operator()(
         // ignore for SC
       }
       else if(statement==ID_input)
+      {
+        // just needs to be recorded
+      }
+      else if(statement==ID_output)
       {
         // just needs to be recorded
       }

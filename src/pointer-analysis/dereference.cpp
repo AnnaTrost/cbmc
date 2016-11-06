@@ -183,12 +183,13 @@ Function: dereferencet::dereference_rec
  Purpose:
 
 \*******************************************************************/
-
+#include <iostream>
 exprt dereferencet::dereference_rec(
   const exprt &address,
   const exprt &offset,
   const typet &type)
 {
+//  std::cout << "dereference_rec "<<address.id_string()<<std::endl;
   if(address.id()==ID_address_of)
   {
     const address_of_exprt &address_of_expr=to_address_of_expr(address);
@@ -232,6 +233,18 @@ exprt dereferencet::dereference_rec(
     else
       throw "dereferencet: unexpected pointer constant "+address.pretty();
   }
+  else if(address.id()==ID_symbol)
+  {
+//    irep_idt id="symex_dynamic::"+id2string(address.get(ID_identifier))+"#deref";
+//    exprt res=symbol_exprt(id);
+//    std::cout << "address type " <<address.type().id()<<" subtype "<<address.type().subtype().id()<<" deref type "<<res.type().id()<<std::endl;
+    return address;
+  }
+  else if(address.id()==ID_member)
+    {
+    return address;
+
+    }
   else
   {
     throw "failed to dereference `"+address.id_string()+"'";

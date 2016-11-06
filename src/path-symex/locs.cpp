@@ -37,7 +37,7 @@ Function: locst::build
  Purpose:
 
 \*******************************************************************/
-
+#include <iostream>
 void locst::build(const goto_functionst &goto_functions)
 {
   // build locations
@@ -68,12 +68,16 @@ void locst::build(const goto_functionst &goto_functions)
     else
       function_entry.first_loc=loc_reft::nil();
   }
-  
+  std::cout << "function map size: " <<function_map.size()<<std::endl;
   if(function_map.find(goto_functionst::entry_point())==
-     function_map.end())
-    throw "no entry point";
+     function_map.end() && function_map.size()!=1)
+    throw "no entry point" ;
   
-  entry_loc=function_map[goto_functionst::entry_point()].first_loc;
+  if(function_map.find(goto_functionst::entry_point())!=
+      function_map.end())
+    entry_loc=function_map[goto_functionst::entry_point()].first_loc;
+  else
+    entry_loc=function_map.begin()->second.first_loc;
     
   // build branch targets
   for(unsigned l=0; l<loc_vector.size(); l++)
@@ -102,6 +106,69 @@ void locst::build(const goto_functionst &goto_functions)
   }
 }
 
+
+void locst::build(const goto_functionst &goto_functions,const irep_idt &entry_point)
+{
+  // build locations
+
+  typedef std::map<goto_programt::const_targett,
+                   loc_reft> target_mapt;
+
+  target_mapt target_map;
+
+  forall_goto_functions(f_it, goto_functions)
+  {
+    const goto_functionst::goto_functiont &goto_function = f_it->second;
+
+    function_entryt &function_entry=function_map[f_it->first];
+    function_entry.type=goto_function.type;
+
+    if(goto_function.body_available())
+    {
+      const loc_reft entry_loc=end();
+      function_entry.first_loc=entry_loc;
+
+      forall_goto_program_instructions(i_it, goto_function.body)
+      {
+        target_map[i_it]=end();
+        loc_vector.push_back(loct(i_it, f_it->first));
+      }
+    }
+    else
+      function_entry.first_loc=loc_reft::nil();
+  }
+
+  if(function_map.find(entry_point)!= function_map.end())
+    entry_loc=function_map[entry_point].first_loc;
+  else
+    throw "no entry point" ;
+
+  // build branch targets
+  for(unsigned l=0; l<loc_vector.size(); l++)
+  {
+    const goto_programt::instructiont &i=*loc_vector[l].target;
+
+    if(i.targets.empty())
+    {
+    }
+    else if(i.targets.size()==1)
+    {
+      const target_mapt::const_iterator m_it=target_map.find(i.get_target());
+
+      if(m_it==target_map.end())
+        throw "locst::build: jump target not found";
+
+      const loc_reft target=m_it->second;
+
+      if(target.loc_number>=loc_vector.size())
+        throw "locst::build: illegal jump target";
+
+      loc_vector[l].branch_target=target;
+    }
+    else
+      throw "locst does not support more than one branch target";
+  }
+}
 /*******************************************************************\
 
 Function: locst::output

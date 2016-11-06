@@ -16,6 +16,8 @@ Author: Daniel Kroening, kroening@kroening.com
 
 #include <path-symex/path_symex_state.h>
 
+#include "summary.h"
+
 class path_searcht:public safety_checkert
 {
 public:
@@ -33,7 +35,11 @@ public:
   }
 
   virtual resultt operator()(
-    const goto_functionst &goto_functions);
+    const goto_functionst &goto_functions,
+    const irep_idt &entry_point,
+    summaryt &sum);
+  virtual resultt operator()(
+      const goto_functionst &goto_functions);
     
   void set_depth_limit(unsigned limit)
   {

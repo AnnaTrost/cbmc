@@ -420,6 +420,18 @@ int goto_diff_parse_optionst::doit()
   if(cmdline.isset("unified") ||
      cmdline.isset('u'))
   {
+    remove_virtual_functions(goto_model1);
+        remove_virtual_functions(goto_model2);
+
+        remove_function_pointers(goto_model1,false);
+        remove_function_pointers(goto_model2,false);
+
+        //Workaround to avoid deps not propagating between return and end_func
+        remove_returns(goto_model1);
+        remove_returns(goto_model2);
+
+        goto_model1.goto_functions.update();
+        goto_model2.goto_functions.update();
     unified_difft u(goto_model1, goto_model2);
     u();
     u.output(std::cout);

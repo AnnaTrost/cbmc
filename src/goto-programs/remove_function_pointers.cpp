@@ -47,6 +47,7 @@ protected:
   const namespacet ns;
   symbol_tablet &symbol_table;
   bool add_safety_assertion;
+  unsigned temporary_counter;
 
   void remove_function_pointer(
     goto_programt &goto_program,
@@ -104,7 +105,8 @@ remove_function_pointerst::remove_function_pointerst(
   const goto_functionst &goto_functions):
   ns(_symbol_table),
   symbol_table(_symbol_table),
-  add_safety_assertion(_add_safety_assertion)
+  add_safety_assertion(_add_safety_assertion),
+  temporary_counter(0)
 {
   compute_address_taken_in_symbols(address_taken);
   compute_address_taken_functions(goto_functions, address_taken);
@@ -131,8 +133,6 @@ Function: remove_function_pointerst::new_tmp_symbol
 
 symbolt &remove_function_pointerst::new_tmp_symbol()
 {
-  static int temporary_counter;
-
   auxiliary_symbolt new_symbol;
   symbolt *symbol_ptr;
   

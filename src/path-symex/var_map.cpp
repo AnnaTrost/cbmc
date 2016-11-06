@@ -86,6 +86,8 @@ void var_mapt::var_infot::output(std::ostream &out) const
   out << "\n";
   
   out << "number: " << number << "\n";
+  out << "ssa_counter: " << ssa_counter << "\n";
+
   
   out << "type: " << type.pretty() << "\n";
   
@@ -106,7 +108,7 @@ Function: var_mapt::init
 
 void var_mapt::init(var_infot &var_info)
 {
-  if(has_prefix(id2string(var_info.symbol), "symex_dynamic::"))
+  if(has_prefix(id2string(var_info.symbol), "symex"))
   {
     var_info.kind=var_infot::SHARED;
   }

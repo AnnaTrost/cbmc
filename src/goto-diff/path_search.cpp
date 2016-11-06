@@ -15,7 +15,7 @@ Author: Daniel Kroening, kroening@kroening.com
 #include <path-symex/build_goto_trace.h>
 
 #include "path_search.h"
-
+#include <iostream>
 /*******************************************************************\
 
 Function: path_searcht::operator()
@@ -29,12 +29,12 @@ Function: path_searcht::operator()
 \*******************************************************************/
 
 path_searcht::resultt path_searcht::operator()(
-  const goto_functionst &goto_functions)
+  const goto_functionst &goto_functions, const irep_idt &entry_point, summaryt &sum)
 {
   locst locs(ns);
   var_mapt var_map(ns);
   
-  locs.build(goto_functions);
+  locs.build(goto_functions, entry_point);
 
   // this is the container for the history-forest  
   path_symex_historyt history;
@@ -60,6 +60,7 @@ path_searcht::resultt path_searcht::operator()(
   while(!queue.empty())
   {
     number_of_steps++;
+//    std::cout << "number_of_steps\n";
   
     // Pick a state from the queue,
     // according to some heuristic.
@@ -74,6 +75,7 @@ path_searcht::resultt path_searcht::operator()(
     try
     {
       statet &state=tmp_queue.front();
+//      std::cout << state.get_pc()<<"\n";
       
       // record we have seen it
       loc_data[state.get_pc().loc_number].visited=true;
@@ -88,6 +90,8 @@ path_searcht::resultt path_searcht::operator()(
     
       if(drop_state(state))
       {
+        std::cout << "drop_state\n";
+        sum.add_path(state,false);
         number_of_dropped_states++;
         number_of_paths++;
         continue;
@@ -95,19 +99,166 @@ path_searcht::resultt path_searcht::operator()(
       
       if(!state.is_executable())
       {
+        sum.add_path(state,true);
+        std::cout << "not executable\n";
         number_of_paths++;
         continue;
       }
 
       if(eager_infeasibility &&
-         state.last_was_branch() &&
-         !is_feasible(state))
+         state.last_was_branch())
       {
-        number_of_infeasible_paths++;
+        if (!is_feasible(state)) {
+          std::cout << "not feasible\n";
+          number_of_infeasible_paths++;
+          number_of_paths++;
+          continue;
+        }
+        else {
+//          sum.add_path(state,false);
+
+//          std::cout << "feasible\n";
+        }
+      }
+      
+      if(number_of_steps%1000==0)
+      {
+        status() << "Queue " << queue.size()
+                 << " thread " << state.get_current_thread()
+                 << '/' << state.threads.size()
+                 << " PC " << state.pc() << messaget::eom;
+      }
+
+      // an error, possibly?
+//      if(state.get_instruction()->is_assert())
+//      {
+//        if(show_vcc)
+//          do_show_vcc(state);
+//        else
+//        {
+//          check_assertion(state);
+//
+//          // all assertions failed?
+////          if(number_of_failed_properties==property_map.size())
+////            break;
+//        }
+//      }
+
+      // execute
+      path_symex(state, tmp_queue);
+      
+      // put at head of main queue
+      queue.splice(queue.begin(), tmp_queue);
+    }
+    catch(const std::string &e)
+    {
+      std::cout << e << eom;
+      number_of_dropped_states++;
+    }
+    catch(const char *e)
+    {
+      std::cout << e << eom;
+      number_of_dropped_states++;
+    }
+    catch(int)
+    {
+      std::cout << "catch int\n";
+      number_of_dropped_states++;
+    }
+  }
+  
+//  report_statistics();
+  
+  return number_of_failed_properties==0?SAFE:UNSAFE;
+}
+
+path_searcht::resultt path_searcht::operator()(
+  const goto_functionst &goto_functions)
+{
+  locst locs(ns);
+  var_mapt var_map(ns);
+
+  locs.build(goto_functions);
+
+  // this is the container for the history-forest
+  path_symex_historyt history;
+
+  queue.push_back(initial_state(var_map, locs, history));
+
+  // set up the statistics
+  number_of_dropped_states=0;
+  number_of_paths=0;
+  number_of_VCCs=0;
+  number_of_steps=0;
+  number_of_feasible_paths=0;
+  number_of_infeasible_paths=0;
+  number_of_VCCs_after_simplification=0;
+  number_of_failed_properties=0;
+  number_of_locs=locs.size();
+
+  // stop the time
+  start_time=current_time();
+
+  //initialize_property_map(goto_functions);
+
+  while(!queue.empty())
+  {
+    number_of_steps++;
+
+    // Pick a state from the queue,
+    // according to some heuristic.
+    // The state moves to the head of the queue.
+    pick_state();
+
+    // move into temporary queue
+    queuet tmp_queue;
+    tmp_queue.splice(
+      tmp_queue.begin(), queue, queue.begin(), ++queue.begin());
+
+    try
+    {
+      statet &state=tmp_queue.front();
+
+      // record we have seen it
+      loc_data[state.get_pc().loc_number].visited=true;
+
+      debug() << "Loc: #" << state.get_pc().loc_number
+              << ", queue: " << queue.size()
+              << ", depth: " << state.get_depth();
+      for(const auto & s : queue)
+        debug() << ' ' << s.get_depth();
+
+      debug() << eom;
+
+      if(drop_state(state))
+      {
+        std::cout << "drop_state\n";
+        number_of_dropped_states++;
         number_of_paths++;
         continue;
       }
-      
+
+      if(!state.is_executable())
+      {
+        std::cout << "not executable\n";
+        number_of_paths++;
+        continue;
+      }
+
+      if(eager_infeasibility &&
+         state.last_was_branch())
+      {
+        if (!is_feasible(state)) {
+          std::cout << "not feasible\n";
+          number_of_infeasible_paths++;
+          number_of_paths++;
+          continue;
+        }
+        else {
+//          std::cout << "feasible\n";
+        }
+      }
+
       if(number_of_steps%1000==0)
       {
         status() << "Queue " << queue.size()
@@ -124,7 +275,7 @@ path_searcht::resultt path_searcht::operator()(
         else
         {
           check_assertion(state);
-          
+
           // all assertions failed?
           if(number_of_failed_properties==property_map.size())
             break;
@@ -133,28 +284,29 @@ path_searcht::resultt path_searcht::operator()(
 
       // execute
       path_symex(state, tmp_queue);
-      
+
       // put at head of main queue
       queue.splice(queue.begin(), tmp_queue);
     }
     catch(const std::string &e)
     {
-      error() << e << eom;
+      std::cout << e << eom;
       number_of_dropped_states++;
     }
     catch(const char *e)
     {
-      error() << e << eom;
+      std::cout << e << eom;
       number_of_dropped_states++;
     }
     catch(int)
     {
+      std::cout << "catch int\n";
       number_of_dropped_states++;
     }
   }
-  
+
   report_statistics();
-  
+
   return number_of_failed_properties==0?SAFE:UNSAFE;
 }
 
@@ -183,26 +335,26 @@ void path_searcht::report_statistics()
   #endif
 
   // report a bit
-  status() << "Number of visited locations: "
+  std::cout << "Number of visited locations: "
            << number_of_visited_locations << " (out of "
            << number_of_locs << ')' << messaget::eom;
 
-  status() << "Number of dropped states: "
+  std::cout << "Number of dropped states: "
            << number_of_dropped_states << messaget::eom;
 
-  status() << "Number of paths: "
+  std::cout << "Number of paths: "
            << number_of_paths << messaget::eom;
 
-  status() << "Number of infeasible paths: "
+  std::cout << "Number of infeasible paths: "
            << number_of_infeasible_paths << messaget::eom;
 
-  status() << "Generated " << number_of_VCCs << " VCC(s), "
+  std::cout << "Generated " << number_of_VCCs << " VCC(s), "
            << number_of_VCCs_after_simplification
            << " remaining after simplification"
            << messaget::eom;
   
   time_periodt total_time=current_time()-start_time;
-  status() << "Runtime: " << total_time << "s total, "
+  std::cout << "Runtime: " << total_time << "s total, "
            << sat_time << "s SAT" << messaget::eom;
 }
 
@@ -258,8 +410,9 @@ void path_searcht::do_show_vcc(statet &state)
   const goto_programt::instructiont &instruction=
     *state.get_instruction();
     
-  mstreamt &out=result();
-
+//  mstreamt &out=result();
+//  out << "do_show_vcc"<< eom;
+  std::ostream &out=std::cout;
   if(instruction.source_location.is_not_nil())
     out << instruction.source_location << '\n';
   

@@ -334,7 +334,7 @@ exprt path_symex_statet::instantiate_rec(
     }
     else
     {
-      throw "member expects struct or union type"+src.pretty();
+//      throw "member expects struct or union type"+src.pretty();
     }
   }
   else if(src.id()==ID_byte_extract_little_endian ||
@@ -589,11 +589,12 @@ Function: path_symex_statet::dereference_rec
  Purpose:
 
 \*******************************************************************/
-
+#include <iostream>
 exprt path_symex_statet::dereference_rec(
   const exprt &src,
   bool propagate)
 {
+//  std::cout << "dereference_rec "<< from_expr(var_map.ns,"",src)<<std::endl;
   if(src.id()==ID_dereference)
   {
     const dereference_exprt &dereference_expr=to_dereference_expr(src);
@@ -697,6 +698,10 @@ exprt path_symex_statet::instantiate_rec_address(
     if_expr.cond()=instantiate_rec(if_expr.cond(), propagate);
     return if_expr;
   }
+  else if(src.id()==ID_typecast)
+    {
+    return src;
+    }
   else
   {
     // this shouldn't really happen
