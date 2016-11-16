@@ -7,6 +7,7 @@ Author: Daniel Kroening, kroening@kroening.com
 \*******************************************************************/
 
 #include "boolbv.h"
+#include <iostream>
 
 /*******************************************************************\
 
@@ -23,7 +24,7 @@ Function: boolbvt::convert_constant
 bvt boolbvt::convert_constant(const constant_exprt &expr)
 {
   std::size_t width=boolbv_width(expr.type());
-  
+//  std::cout <<"convert_constant "<<width<<"\n";
   if(width==0)
     return conversion_failed(expr);
 

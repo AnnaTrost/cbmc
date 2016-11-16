@@ -31,12 +31,12 @@ Function: boolbvt::convert_equality
 
 literalt boolbvt::convert_equality(const equal_exprt &expr)
 {
-  if(!base_type_eq(expr.lhs().type(), expr.rhs().type(), ns))
-  {
-    std::cout << "######### lhs: " << expr.lhs().pretty() << std::endl;
-    std::cout << "######### rhs: " << expr.rhs().pretty() << std::endl;
-    throw "equality without matching types";
-  }
+//  if(!base_type_eq(expr.lhs().type(), expr.rhs().type(), ns))
+//  {
+//    std::cout << "######### lhs: " << expr.lhs().pretty() << std::endl;
+//    std::cout << "######### rhs: " << expr.rhs().pretty() << std::endl;
+//    throw "equality without matching types";
+//  }
 
   // see if it is an unbounded array
   if(is_unbounded_array(expr.lhs().type()))

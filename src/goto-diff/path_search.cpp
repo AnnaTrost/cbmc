@@ -11,10 +11,10 @@ Author: Daniel Kroening, kroening@kroening.com
 #include <solvers/flattening/bv_pointers.h>
 #include <solvers/sat/satcheck.h>
 
-#include <path-symex/path_symex.h>
 #include <path-symex/build_goto_trace.h>
 
 #include "path_search.h"
+#include "path_symex.h"
 #include <iostream>
 /*******************************************************************\
 
@@ -29,7 +29,7 @@ Function: path_searcht::operator()
 \*******************************************************************/
 
 path_searcht::resultt path_searcht::operator()(
-  const goto_functionst &goto_functions, const irep_idt &entry_point, summaryt &sum)
+  const goto_functionst &goto_functions, const irep_idt &entry_point, map<irep_idt, summaryt> &sums)
 {
   locst locs(ns);
   var_mapt var_map(ns);
@@ -55,6 +55,8 @@ path_searcht::resultt path_searcht::operator()(
   // stop the time
   start_time=current_time();
   
+  summaryt& sum=sums.find(entry_point)->second;
+
   //initialize_property_map(goto_functions);
   
   while(!queue.empty())
@@ -145,7 +147,7 @@ path_searcht::resultt path_searcht::operator()(
 //      }
 
       // execute
-      path_symex(state, tmp_queue);
+      path_symex(state, tmp_queue,sums);
       
       // put at head of main queue
       queue.splice(queue.begin(), tmp_queue);
@@ -160,11 +162,11 @@ path_searcht::resultt path_searcht::operator()(
       std::cout << e << eom;
       number_of_dropped_states++;
     }
-    catch(int)
-    {
-      std::cout << "catch int\n";
-      number_of_dropped_states++;
-    }
+//    catch(int)
+//    {
+//      std::cout << "catch int\n";
+//      number_of_dropped_states++;
+//    }
   }
   
 //  report_statistics();
@@ -283,7 +285,7 @@ path_searcht::resultt path_searcht::operator()(
       }
 
       // execute
-      path_symex(state, tmp_queue);
+//      path_symex(state, tmp_queue);
 
       // put at head of main queue
       queue.splice(queue.begin(), tmp_queue);
@@ -472,6 +474,9 @@ Function: path_searcht::drop_state
 
 bool path_searcht::drop_state(const statet &state) const
 {
+	loc_reft l=state.get_pc();
+	if(l.loc_number<0 || l.loc_number >= number_of_locs)
+		return true;
   // depth limit
   if(depth_limit_set && state.get_depth()>depth_limit)
     return true;

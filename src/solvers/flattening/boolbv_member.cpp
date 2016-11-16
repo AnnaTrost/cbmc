@@ -12,7 +12,8 @@ Author: Daniel Kroening, kroening@kroening.com
 #include <util/arith_tools.h>
 
 #include "boolbv.h"
-
+#include <langapi/language_util.h>
+#include <iostream>
 /*******************************************************************\
 
 Function: boolbvt::convert_member
@@ -32,6 +33,8 @@ bvt boolbvt::convert_member(const member_exprt &expr)
 
   const bvt &struct_bv=convert_bv(struct_op);
 
+
+//  std::cout << "convert_member " <<expr.get_component_name()<< " type " << struct_op_type.id() <<" location "<< expr.find_source_location()<<"\n";
   if(struct_op_type.id()==ID_union)
   {
     return convert_bv(
@@ -89,6 +92,15 @@ bvt boolbvt::convert_member(const member_exprt &expr)
             << " not found in structure" << eom;
     throw 0;
   }
+  else if(struct_op_type.id()==ID_pointer)
+    {
+  	bvt bv;
+  	bv.resize(32);
+  	for(std::size_t i=0; i<32; i++)
+  	    bv[i]=struct_bv[i];
+
+  	return bv;
+    }
   else
   {
     error().source_location=expr.find_source_location();

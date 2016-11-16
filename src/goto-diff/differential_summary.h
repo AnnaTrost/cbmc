@@ -24,7 +24,7 @@ class differential_summaryt {
   string old_prefix="old#";
   string new_prefix="new#";
 public:
-  typedef enum {ADDED,REMOVED,CHANGED,AFFECTED,UNAFFECTED} typet;
+  typedef enum {ADDED,REMOVED,CHANGED,AFFECTED,UNAFFECTED,CHANGED_BUT_UNAFFECTED} typet;
   differential_summaryt(typet type=UNAFFECTED);
 //  exprt get_summary_old();
 //  exprt get_summary_new();

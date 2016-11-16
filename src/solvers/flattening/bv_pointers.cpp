@@ -259,11 +259,12 @@ Function: bv_pointerst::convert_pointer_type
  Purpose:
 
 \*******************************************************************/
-
+//#include <>
 bvt bv_pointerst::convert_pointer_type(const exprt &expr)
 {
   if(!is_ptr(expr.type()))
     throw "convert_pointer_type got non-pointer type";
+//  std::cout <<"convert_pointer_type " <<expr.id() <<" bits:"<<bits<<"\n";
 
   if(expr.id()==ID_symbol)
   {

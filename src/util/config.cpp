@@ -95,7 +95,7 @@ void configt::ansi_ct::set_LP64()
   char_width=1*8;
   short_int_width=2*8;
   long_long_int_width=8*8;
-  pointer_width=8*8;
+  pointer_width=4*8;
   single_width=4*8;
   double_width=8*8;
   long_double_width=16*8;
@@ -130,7 +130,7 @@ void configt::ansi_ct::set_ILP64()
   char_width=1*8;
   short_int_width=2*8;
   long_long_int_width=8*8;
-  pointer_width=8*8;
+  pointer_width=4*8;
   single_width=4*8;
   double_width=8*8;
   long_double_width=8*8;
@@ -161,7 +161,7 @@ void configt::ansi_ct::set_LLP64()
   char_width=1*8;
   short_int_width=2*8;
   long_long_int_width=8*8;
-  pointer_width=8*8;
+  pointer_width=4*8;
   single_width=4*8;
   double_width=8*8;
   long_double_width=8*8;
@@ -1206,7 +1206,7 @@ bool configt::set(const cmdlinet &cmdline)
     assert(ansi_c.char_width==sizeof(char)*8);
     assert(ansi_c.short_int_width==sizeof(short)*8);
     assert(ansi_c.long_long_int_width==sizeof(long long)*8);
-    assert(ansi_c.pointer_width==sizeof(void *)*8);
+//    assert(ansi_c.pointer_width==sizeof(void *)*8);
     assert(ansi_c.single_width==sizeof(float)*8);
     assert(ansi_c.double_width==sizeof(double)*8);
     assert(ansi_c.char_is_unsigned==(char(255)==255));
@@ -1437,7 +1437,8 @@ void configt::set_from_symbol_table(
   ansi_c.char_width=unsigned_from_ns(ns, "char_width");
   ansi_c.short_int_width=unsigned_from_ns(ns, "short_int_width");
   ansi_c.long_long_int_width=unsigned_from_ns(ns, "long_long_int_width");
-  ansi_c.pointer_width=unsigned_from_ns(ns, "pointer_width");
+//  ansi_c.pointer_width=unsigned_from_ns(ns, "pointer_width");
+  ansi_c.pointer_width=32;
   ansi_c.single_width=unsigned_from_ns(ns, "single_width");
   ansi_c.double_width=unsigned_from_ns(ns, "double_width");
   ansi_c.long_double_width=unsigned_from_ns(ns, "long_double_width");

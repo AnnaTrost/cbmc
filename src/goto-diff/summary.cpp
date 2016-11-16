@@ -10,9 +10,14 @@
 #include <util/suffix.h>
 #include <util/prefix.h>
 
+//summaryt::summaryt(): ns(namespacet(symbol_tablet))
+//{
+//}
+
 summaryt::summaryt(const namespacet &_ns,
-    const irep_idt &_function_name, const goto_programt &goto_program) :
-    ns(_ns), function_name(_function_name)
+    const irep_idt &_function_name,
+		const goto_programt &goto_program, goto_functionst &_goto_functions) :
+    ns(_ns), function_name(_function_name), goto_functions(_goto_functions)
 {
   formula=false_exprt();
   collect_inputs_outputs(goto_program);
@@ -25,8 +30,11 @@ summaryt::~summaryt()
 void summaryt::add_path(statet &state, bool is_terminating)
 {
   exprt path_sum=get_path_summary(state);
-  for(exprt output:global_outputs)
-    fix_outputs(path_sum,output.get(ID_identifier),output.type());
+  if(is_terminating)
+  {
+  	for(exprt output:global_outputs)
+  		fix_outputs(path_sum,output.get(ID_identifier),output.type());
+  }
   paths.push_back(path_sum);
   collect_inputs(path_sum);
   std::string string_value=from_expr(ns, "", path_sum);
@@ -73,7 +81,21 @@ void summaryt::collect_inputs_outputs(
       code_assignt assignment=to_code_assign(i_it->code);
       exprt lhs=assignment.lhs();
       exprt rhs=assignment.rhs();
-      add_outputs(lhs);
+      add_outputs(lhs,false);
+    }
+    if(i_it->type==FUNCTION_CALL)
+    {
+//    	std::cout <<"function call\n";
+    	const exprt &function=to_code_function_call(i_it->code).function();
+    	if(function.id()==ID_symbol)
+    	{
+    		const irep_idt &identifier=function.get(ID_identifier);
+    		if(called_functions.find(identifier)!=called_functions.end())
+    			continue;
+    		called_functions.insert(identifier);
+    		collect_prints(identifier);
+
+    	}
     }
     if(i_it->type==OTHER && i_it->code.get(ID_statement)==ID_printf)
     {
@@ -84,10 +106,45 @@ void summaryt::collect_inputs_outputs(
           first=false;
           continue;
         }
-        add_outputs(*it);
+        add_outputs(*it,true);
         }
     }
   }
+}
+
+void summaryt::collect_prints(const irep_idt& id)
+{
+//	std::cout <<"collect_prints "<<id <<"\n";
+	const goto_programt& goto_program=goto_functions.function_map[id].body;
+	forall_goto_program_instructions(i_it, goto_program)
+	  {
+	    if(i_it->type==FUNCTION_CALL)
+	    {
+	    	const exprt &function=to_code_function_call(i_it->code).function();
+	    	if(function.id()==ID_symbol)
+	    	{
+	    		const irep_idt &identifier=function.get(ID_identifier);
+	    		if(called_functions.find(identifier)!=called_functions.end())
+	    			continue;
+	    		called_functions.insert(identifier);
+	    		collect_prints(identifier);
+
+	    	}
+	    }
+	    if(i_it->type==OTHER && i_it->code.get(ID_statement)==ID_printf)
+	    {
+//	    	std::cout <<"printf "<<i_it->code.operands().size()<<"\n";
+	      bool first = true;
+	      forall_expr(it, i_it->code.operands())
+	        {
+	        if(first) {
+	          first=false;
+	          continue;
+	        }
+	        add_outputs(*it,true);
+	        }
+	    }
+	  }
 }
 
 void summaryt::output(std::ostream &out) const {
@@ -96,13 +153,16 @@ void summaryt::output(std::ostream &out) const {
 
 }
 
-void summaryt::add_outputs(exprt e)
+void summaryt::add_outputs(exprt e,bool in_print)
 {
+//	std::cout <<"add_output\n";
   if(e.id()==ID_symbol)
   {
     const irep_idt &identifier=e.get(ID_identifier);
+//  	std::cout <<"add_output symbol "<<identifier<<"\n";
+
     const symbolt &symbol=ns.lookup(identifier);
-    if(!symbol.is_procedure_local())
+    if(in_print || !symbol.is_procedure_local())
     {
       global_outputs.insert(e);
     }
@@ -111,7 +171,7 @@ void summaryt::add_outputs(exprt e)
   {
     for(exprt op : e.operands())
     {
-      add_outputs(op);
+      add_outputs(op, in_print);
     }
   }
 }

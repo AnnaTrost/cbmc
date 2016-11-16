@@ -956,6 +956,7 @@ void path_symext::operator()(
     break;
     
   case GOTO:
+  	state.record_step();
     do_goto(state, further_states);
     break;
     

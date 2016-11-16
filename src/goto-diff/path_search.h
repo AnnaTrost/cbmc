@@ -15,8 +15,11 @@ Author: Daniel Kroening, kroening@kroening.com
 #include <goto-programs/safety_checker.h>
 
 #include <path-symex/path_symex_state.h>
+#include <map>
 
 #include "summary.h"
+
+using std::map;
 
 class path_searcht:public safety_checkert
 {
@@ -37,7 +40,7 @@ public:
   virtual resultt operator()(
     const goto_functionst &goto_functions,
     const irep_idt &entry_point,
-    summaryt &sum);
+		map<irep_idt, summaryt> &sums);
   virtual resultt operator()(
       const goto_functionst &goto_functions);
     

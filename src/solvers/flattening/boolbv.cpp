@@ -199,12 +199,13 @@ Function: boolbvt::convert_bitvector
  Purpose:
 
 \*******************************************************************/
-
+#include <iostream>
 bvt boolbvt::convert_bitvector(const exprt &expr)
 {
   #ifdef DEBUG
   std::cout << "BV: " << expr.pretty() << std::endl;
   #endif
+//std::cout <<"convert_bitvector "<<expr.id()<<"\n";
 
   if(expr.type().id()==ID_bool)
   {
@@ -478,6 +479,7 @@ bvt boolbvt::convert_symbol(const exprt &expr)
   bv.resize(width);
   
   const irep_idt &identifier=expr.get(ID_identifier);
+//  std::cout << "convert_symbol "<<identifier <<" width "<<width<<"\n";
 
   if(identifier.empty())
     throw "convert_symbol got empty identifier";

@@ -24,7 +24,10 @@ differential_summaryt::differential_summaryt(typet _type) :
 
 void differential_summaryt::set_unaffected()
 {
-  type=UNAFFECTED;
+	if(type==CHANGED)
+		type=CHANGED_BUT_UNAFFECTED;
+	else
+		type=UNAFFECTED;
   unchanged=true_exprt();
 }
 /*******************************************************************\
@@ -81,6 +84,8 @@ string differential_summaryt::typet2string(const typet& type) {
     return "affected";
   case UNAFFECTED:
     return "unaffected";
+  case CHANGED_BUT_UNAFFECTED:
+  	return "changed but unaffected";
   }
   return "";
 }
@@ -124,28 +129,29 @@ bool differential_summaryt::recompute_diff()
   satcheckt satcheck;
   set<exprt> inputs=summary_new->get_inputs();
   set<exprt> outputs=summary_new->get_outputs();
-  bool is_differ=false;
+  bool is_differ=summary_new->get_paths().empty() ? true:false;
   std::cout << "recompute_diff1 "<<std::endl;
   for(exprt old_path_sum : summary_old->get_paths())
   {
     for(exprt new_path_sum : summary_new->get_paths())
     {
+//    	try{
       std::cout << "recompute_diff2 "<<std::endl;
-      bv_pointerst bv_pointers(ns, satcheck);
-      std::cout << "recompute_diff3 "<<std::endl;
+      bv_pointerst bv_pointers(summary_old->ns, satcheck);
+//      std::cout << "recompute_diff3 "<<std::endl;
       add_prefix(old_path_sum,old_prefix);
       add_prefix(new_path_sum,new_prefix);
-      std::cout << "recompute_diff4 "<<std::endl;
-
-//      std::cout << "old_path_sum: "<<from_expr(old_path_sum)<<std::endl;
-//      std::cout << "new_path_sum: "<<from_expr(new_path_sum)<<std::endl;
+//      std::cout << "recompute_diff4 "<<std::endl;
+//
+//      std::cout << "old_path_sum: "<<from_expr(summary_old->ns,"",old_path_sum)<<std::endl;
+//      std::cout << "new_path_sum: "<<from_expr(summary_new->ns,"",new_path_sum)<<std::endl;
 
       bv_pointers << old_path_sum;
       bv_pointers << new_path_sum;
-      std::cout << "recompute_diff5 "<<std::endl;
+//      std::cout << "recompute_diff5 "<<std::endl;
       for (exprt input:inputs)
         {
-        std::cout << "recompute_diff6 "<<std::endl;
+//        std::cout << "recompute_diff6 "<<std::endl;
           irep_idt old_name=old_prefix+id2string(input.get(ID_identifier));
           irep_idt new_name=new_prefix+id2string(input.get(ID_identifier));
           exprt eq=equal_exprt(symbol_exprt(old_name,input.type()),symbol_exprt(new_name,input.type()));
@@ -155,17 +161,17 @@ bool differential_summaryt::recompute_diff()
 
           bv_pointers << eq;
         }
-      std::cout << "recompute_diff7 "<<std::endl;
+//      std::cout << "recompute_diff7 "<<std::endl;
         exprt differ=false_exprt();
         for (exprt output:outputs)
         {
-          std::cout << "recompute_diff8 "<<std::endl;
           irep_idt old_name=old_prefix+id2string(output.get(ID_identifier));
+//          std::cout << "recompute_diff8 output " <<old_name<<std::endl;
           irep_idt new_name=new_prefix+id2string(output.get(ID_identifier));
           differ=or_exprt(differ, not_exprt(equal_exprt(symbol_exprt(old_name,output.type()),symbol_exprt(new_name,output.type()))));
         }
 //        std::cout << "differ: "<<from_expr(differ)<<std::endl;
-        std::cout << "recompute_diff9 "<<std::endl;
+//        std::cout << "recompute_diff9 "<<std::endl;
         bv_pointers << differ;
         std::cout << "running sat\n";
 
@@ -186,12 +192,19 @@ bool differential_summaryt::recompute_diff()
          case decision_proceduret::D_ERROR:
            throw "error from decision procedure";
          }
+//    	}
+
+//    	catch(...)
+//    	{
+//    		std::cout << "unknown\n";
+//    		is_differ=true;
+//    	}
 
     }
   }
   if (!is_differ)
   {
-    set_unaffected();
+//    set_unaffected();
 
   }
 
