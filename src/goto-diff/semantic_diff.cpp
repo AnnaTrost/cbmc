@@ -11,6 +11,8 @@
 #include <set>
 #include <unordered_set>
 #include <list>
+#include <util/time_stopping.h>
+
 
 #include <goto-programs/goto_model.h>
 #include <analyses/dependence_graph.h>
@@ -21,7 +23,7 @@
 #include "differential_summary.h"
 #include "bt_call_graph.h"
 #include "path_search.h"
-#include "summary.h"
+#include "summaryDB.h"
 
 using std::set;
 using std::map;
@@ -33,13 +35,16 @@ using std::list;
 class semantic_difft
 {
 public:
-  semantic_difft(goto_modelt &model_old,
-      goto_modelt &model_new);
+  semantic_difft(goto_modelt &model_old, goto_modelt &model_new,
+      unsigned unwind_limit, bool refine);
 
   void operator()();
 
 protected:
   /******************** Fields ********************/
+
+  unsigned unwind_limit;
+  bool refine;
 
   goto_functionst &old_goto_functions;
   const namespacet ns_old;
@@ -50,13 +55,7 @@ protected:
 
   map<irep_idt, differential_summaryt> summaries;
 
-  map<irep_idt, summaryt> old_summaries;
-  map<irep_idt, summaryt> new_summaries;
-
   unified_difft unified_diff;
-
-//  dependence_grapht old_dep_graph;
-//  dependence_grapht new_dep_graph;
 
   //caching visited locations in the change impact
   set<pair<irep_idt,unsigned>> affected_locations;
@@ -64,6 +63,7 @@ protected:
   /******************** Methods ********************/
 
   void initialize(list<irep_idt> &workset);
+  void initialize_path_search(path_searcht &path_search);
   void add_summary(const irep_idt& function,
       differential_summaryt::typet type);
   void mark_affected(const irep_idt& function);
@@ -93,24 +93,26 @@ protected:
  \*******************************************************************/
 
 semantic_difft::semantic_difft(goto_modelt &model_old,
-    goto_modelt &model_new) :
-    old_goto_functions(model_old.goto_functions), ns_old(
-        model_old.symbol_table), old_call_graph(
+    goto_modelt &model_new, unsigned _unwind_limit, bool _refine) :
+    unwind_limit(_unwind_limit), refine(_refine), old_goto_functions(
+        model_old.goto_functions), ns_old(model_old.symbol_table), old_call_graph(
         model_old.goto_functions), new_goto_functions(
         model_new.goto_functions), ns_new(model_new.symbol_table), new_call_graph(
         model_new.goto_functions), unified_diff(model_old, model_new)
 {
 
-//  interval_analysis(ns_old,old_goto_functions);
   // syntactic difference?
   if(!unified_diff())
     return;
+}
 
-  // compute program dependence graph of old code
-//  old_dep_graph(old_goto_functions, ns_old);
-
-  // compute program dependence graph of new code
-//  new_dep_graph(new_goto_functions, ns_new);
+void semantic_difft::initialize_path_search(path_searcht &path_search)
+{
+  path_search.eager_infeasibility = true;
+  path_search.set_unwind_limit(unwind_limit);
+  path_search.set_branch_bound(50);
+  path_search.set_depth_limit(50);
+  path_search.set_context_bound(9);
 }
 
 void semantic_difft::initialize(list<irep_idt> &workset)
@@ -128,19 +130,19 @@ void semantic_difft::initialize(list<irep_idt> &workset)
   forall_goto_functions(it, new_goto_functions)
     new_funcs.insert(std::make_pair(it->first, it));
 
+  SummaryDBt::initialize(ns_old,ns_new,old_goto_functions,new_goto_functions);
+  SummaryDBt &summaryDB=SummaryDBt::getInstance();
+
   function_mapt::const_iterator ito=old_funcs.begin();
   for(function_mapt::const_iterator itn=new_funcs.begin();
       itn!=new_funcs.end(); ++itn)
   {
-  	new_summaries.insert(std::make_pair(itn->first,summaryt(ns_new, itn->first,
-  	      		new_goto_functions.function_map[itn->first].body,new_goto_functions)));
+    summaryDB.get_summary(false,itn->first);
     while(ito!=old_funcs.end() && ito->first<itn->first)
     {
       add_summary(ito->first, differential_summaryt::REMOVED);
-//      mark_affected(ito->first);
       workset.push_back(ito->first);
-      old_summaries.insert(std::make_pair(ito->first,summaryt(ns_old, ito->first,
-            		old_goto_functions.function_map[ito->first].body,old_goto_functions)));
+      summaryDB.get_summary(true,ito->first);
       ++ito;
     }
 
@@ -167,16 +169,13 @@ void semantic_difft::initialize(list<irep_idt> &workset)
       if(has_diff)
       {
         add_summary(function_id, differential_summaryt::CHANGED);
-//        mark_affected(function_id);
         workset.push_back(function_id);
       }
-      old_summaries.insert(std::make_pair(ito->first,summaryt(ns_old, ito->first,
-      		old_goto_functions.function_map[ito->first].body,old_goto_functions)));
+      summaryDB.get_summary(true,ito->first);
       ++ito;
     } else
     {
       add_summary(itn->first, differential_summaryt::ADDED);
-//      mark_affected(itn->first);
       workset.push_back(itn->first);
     }
   }
@@ -378,67 +377,35 @@ differential_summaryt semantic_difft::recompute_summary(const irep_idt& function
   std::cout << "recompute summary "<<function <<std::endl;
   differential_summaryt &old=summaries[function];
   differential_summaryt res=summaries[function];
-//  goto_functionst old_funcs, new_funcs;
-//  old_funcs.function_map[function].copy_from(old_goto_functions.function_map[function]);
-//  new_funcs.function_map[function].copy_from(new_goto_functions.function_map[function]);
-  path_searcht new_path_search(ns_new);
-  path_searcht old_path_search(ns_old);
-  old_path_search.eager_infeasibility = true;
-  new_path_search.eager_infeasibility = true;
-  old_path_search.set_unwind_limit(10);
-  new_path_search.set_unwind_limit(10);
-  old_path_search.set_branch_bound(50);
-  new_path_search.set_branch_bound(50);
-  old_path_search.set_depth_limit(50);
-  new_path_search.set_depth_limit(50);
-  old_path_search.set_context_bound(10);
-  new_path_search.set_context_bound(10);
-//  summaryt old_summary(ns_old,function,old_goto_functions.function_map[function].body),
-//      new_summary(ns_new,function,new_goto_functions.function_map[function].body);
   switch(old.get_type())
   {
   case differential_summaryt::ADDED:
   {
-//    summaryt new_summary(ns_new, function,
-//        new_goto_functions.function_map[function].body,new_goto_functions);
-    new_path_search(new_goto_functions, function, new_summaries);
+    path_searcht new_path_search(ns_new);
+    initialize_path_search(new_path_search);
+    new_path_search(new_goto_functions, function, false, refine);
     break;
   }
   case differential_summaryt::REMOVED:
   {
-//    summaryt old_summary(ns_old, function,
-//        old_goto_functions.function_map[function].body,old_goto_functions);
-    old_path_search(old_goto_functions, function, old_summaries);
+    path_searcht old_path_search(ns_old);
+    initialize_path_search(old_path_search);
+    old_path_search(old_goto_functions, function, true, refine);
     break;
   }
   case differential_summaryt::CHANGED:
-  {
-//    summaryt new_summary(ns_new, function,
-//        new_goto_functions.function_map[function].body,new_goto_functions);
-//    summaryt old_summary(ns_old, function,
-//        old_goto_functions.function_map[function].body,old_goto_functions);
-    old_path_search(old_goto_functions, function, old_summaries);
-    new_path_search(new_goto_functions, function, new_summaries);
-//    old_summary.output(std::cout);
-//      new_summary.output(std::cout);
-      res.add_summary_old(old_summaries.find(function)->second);
-        res.add_summary_new(new_summaries.find(function)->second);
-        res.recompute_diff();
-    break;
-  }
   case differential_summaryt::AFFECTED:
   {
-//    summaryt new_summary(ns_new, function,
-//        new_goto_functions.function_map[function].body,new_goto_functions);
-//    summaryt old_summary(ns_old, function,
-//        old_goto_functions.function_map[function].body,old_goto_functions);
-    old_path_search(old_goto_functions, function, old_summaries);
-    new_path_search(new_goto_functions, function, new_summaries);
-//    old_summary.output(std::cout);
-//      new_summary.output(std::cout);
-      res.add_summary_old(old_summaries.find(function)->second);
-        res.add_summary_new(new_summaries.find(function)->second);
-        res.recompute_diff();
+    path_searcht old_path_search(ns_old);
+    initialize_path_search(old_path_search);
+    path_searcht new_path_search(ns_new);
+    initialize_path_search(new_path_search);
+    old_path_search(old_goto_functions, function, true, refine);
+    new_path_search(new_goto_functions, function, false, refine);
+    SummaryDBt &summaryDB=SummaryDBt::getInstance();
+    res.add_summary_old(summaryDB.get_summary(true,function));
+    res.add_summary_new(summaryDB.get_summary(false,function));
+    res.recompute_diff();
     break;
   }
   }
@@ -450,6 +417,7 @@ differential_summaryt semantic_difft::recompute_summary(const irep_idt& function
  Function: semantic_difft::output_summaries
 
  Inputs:
+
 
  Outputs:
 
@@ -486,11 +454,14 @@ void semantic_difft::operator()()
   while(!workset.empty())
   {
     irep_idt curr=choose(workset);
+    std::cout << "doing " << curr<< std::endl;
     if(summaries.find(curr)==summaries.end())
       add_summary(curr,differential_summaryt::AFFECTED);
     assert(summaries.find(curr)!=summaries.end());
     differential_summaryt &old_summary=summaries[curr];
     differential_summaryt new_summary=recompute_summary(curr);
+
+    std::cout << "done " << curr << " type: " << new_summary.get_type() << std::endl;
 
       summaries[curr]=new_summary;
 		if(new_summary.get_type()!=differential_summaryt::UNAFFECTED
@@ -516,10 +487,12 @@ void semantic_difft::operator()()
  \*******************************************************************/
 
 void semantic_diff(goto_modelt &model_old,
-    goto_modelt &model_new)
+    goto_modelt &model_new, unsigned unwind_limit, bool refine)
 {
+
   try{
-  semantic_difft sd(model_old,model_new);
+
+  semantic_difft sd(model_old,model_new,unwind_limit,refine);
   sd();
   } catch(const char *e)  {
     std::cout <<e<<std::endl;

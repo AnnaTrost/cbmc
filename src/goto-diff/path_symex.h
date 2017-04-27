@@ -23,8 +23,7 @@ using std::map;
 
 void path_symex(
   path_symex_statet &state,
-  std::list<path_symex_statet> &further_states,
-	map<irep_idt, summaryt> &sums);
+  std::list<path_symex_statet> &further_states, bool old, bool refine);
 
 // Transform a state by executing a single statement.
 // Will fail if there is more than one successor state.

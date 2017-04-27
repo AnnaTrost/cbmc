@@ -120,92 +120,103 @@ void differential_summaryt::add_summary_new(summaryt& sum)
 bool differential_summaryt::recompute_diff()
 {
   assert(summary_old && summary_new);
-//  if(summary_old->get_inputs() != summary_new->get_inputs() ||
-//      summary_old->get_outputs() != summary_new->get_outputs())
-//    return false;
-
 
   namespacet ns(st);
-  satcheckt satcheck;
   set<exprt> inputs=summary_new->get_inputs();
   set<exprt> outputs=summary_new->get_outputs();
   bool is_differ=summary_new->get_paths().empty() ? true:false;
   std::cout << "recompute_diff1 "<<std::endl;
   for(exprt old_path_sum : summary_old->get_paths())
   {
+    add_prefix(old_path_sum,old_prefix);
     for(exprt new_path_sum : summary_new->get_paths())
     {
-//    	try{
-      std::cout << "recompute_diff2 "<<std::endl;
+//      std::cout << "recompute_diff2 "<<std::endl;
+      satcheckt satcheck;
       bv_pointerst bv_pointers(summary_old->ns, satcheck);
-//      std::cout << "recompute_diff3 "<<std::endl;
-      add_prefix(old_path_sum,old_prefix);
-      add_prefix(new_path_sum,new_prefix);
-//      std::cout << "recompute_diff4 "<<std::endl;
-//
+        add_prefix(new_path_sum,new_prefix);
 //      std::cout << "old_path_sum: "<<from_expr(summary_old->ns,"",old_path_sum)<<std::endl;
 //      std::cout << "new_path_sum: "<<from_expr(summary_new->ns,"",new_path_sum)<<std::endl;
 
       bv_pointers << old_path_sum;
       bv_pointers << new_path_sum;
-//      std::cout << "recompute_diff5 "<<std::endl;
       for (exprt input:inputs)
         {
-//        std::cout << "recompute_diff6 "<<std::endl;
           irep_idt old_name=old_prefix+id2string(input.get(ID_identifier));
           irep_idt new_name=new_prefix+id2string(input.get(ID_identifier));
-          exprt eq=equal_exprt(symbol_exprt(old_name,input.type()),symbol_exprt(new_name,input.type()));
+          exprt old_exp=input;
+          old_exp.set(ID_identifier,old_name);
+          exprt new_exp=input;
+          new_exp.set(ID_identifier,new_name);
+          exprt eq=equal_exprt(old_exp,new_exp);
+//          exprt eq=equal_exprt(symbol_exprt(old_name,input.type()),symbol_exprt(new_name,input.type()));
+          new_path_sum=and_exprt(new_path_sum,eq);
 //          std::cout << "eq name: "<<old_name<<std::endl;
 
 //          std::cout << "eq input: "<<from_expr(eq)<<std::endl;
 
           bv_pointers << eq;
         }
-//      std::cout << "recompute_diff7 "<<std::endl;
+
         exprt differ=false_exprt();
         for (exprt output:outputs)
         {
           irep_idt old_name=old_prefix+id2string(output.get(ID_identifier));
 //          std::cout << "recompute_diff8 output " <<old_name<<std::endl;
           irep_idt new_name=new_prefix+id2string(output.get(ID_identifier));
+          exprt old_exp=output;
+                    old_exp.set(ID_identifier,old_name);
+                    exprt new_exp=output;
+                    new_exp.set(ID_identifier,new_name);
+                    exprt eq=equal_exprt(old_exp,new_exp);
           differ=or_exprt(differ, not_exprt(equal_exprt(symbol_exprt(old_name,output.type()),symbol_exprt(new_name,output.type()))));
         }
 //        std::cout << "differ: "<<from_expr(differ)<<std::endl;
-//        std::cout << "recompute_diff9 "<<std::endl;
-        bv_pointers << differ;
-        std::cout << "running sat\n";
 
+        bv_pointers << differ;
         switch(bv_pointers())
          {
          case decision_proceduret::D_SATISFIABLE:
-           std::cout << "sat\n";
-           is_differ=true;
+           std::cout << "diff sat\n";
 //           bv_pointers.print_assignment(std::cout);
+           is_differ=true;
            break;
-//           return false;
 
          case decision_proceduret::D_UNSATISFIABLE:
-           std::cout << "unsat\n";
+//           std::cout << "unsat\n";
            break;
-//           return true;
 
          case decision_proceduret::D_ERROR:
            throw "error from decision procedure";
          }
-//    	}
-
-//    	catch(...)
-//    	{
-//    		std::cout << "unknown\n";
-//    		is_differ=true;
-//    	}
-
     }
+  }
+
+  satcheckt satcheck;
+  bv_pointerst bv_pointers(summary_old->ns, satcheck);
+  exprt uncovered=summary_old->get_uncovered();
+  uncovered=or_exprt(uncovered,summary_new->get_uncovered());
+  std::cout << "uncovered: "<<from_expr(uncovered)<<std::endl;
+  bv_pointers << uncovered;
+  switch(bv_pointers())
+  {
+  case decision_proceduret::D_SATISFIABLE:
+    std::cout<<"uncovered sat\n";
+//    bv_pointers.print_assignment(std::cout);
+//    std::cout<<"uncovered sat2\n";
+    is_differ=true;
+    break;
+
+  case decision_proceduret::D_UNSATISFIABLE:
+    std::cout<<"uncovered unsat\n";
+    break;
+
+  case decision_proceduret::D_ERROR:
+    throw "error from decision procedure";
   }
   if (!is_differ)
   {
-//    set_unaffected();
-
+    set_unaffected();
   }
 
   return false;
@@ -213,6 +224,7 @@ bool differential_summaryt::recompute_diff()
 
 void differential_summaryt::add_prefix(exprt &e, const string &prefix)
 {
+//  std::cout <<"adding prefix " << from_expr(summary_old->ns,"",e) <<" id " << id2string(e.id())<<std::endl;
   if(e.id()==ID_symbol)
   {
     irep_idt name=prefix+id2string(e.get(ID_identifier));

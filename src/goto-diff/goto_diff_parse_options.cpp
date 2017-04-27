@@ -16,6 +16,8 @@ Author: Peter Schrammel
 #include <util/expr_util.h>
 #include <util/language.h>
 #include <util/i2string.h>
+#include <util/time_stopping.h>
+
 
 #include <goto-programs/goto_convert_functions.h>
 #include <goto-programs/remove_function_pointers.h>
@@ -362,6 +364,7 @@ int goto_diff_parse_optionst::doit()
 
   if(cmdline.isset("semantic-diff"))
   {
+    absolute_timet start_time=current_time();
     remove_virtual_functions(goto_model1);
     remove_virtual_functions(goto_model2);
     std::cout << "remove_virtual_functions\n";
@@ -380,8 +383,12 @@ int goto_diff_parse_optionst::doit()
     goto_model2.goto_functions.update();
     std::cout << "update\n";
 
+    unsigned unwind_limit=2;
+    if(cmdline.isset("unwind"))
+        unwind_limit=unsafe_string2unsigned(cmdline.get_value("unwind"));
 
-    semantic_diff(goto_model1, goto_model2);
+    semantic_diff(goto_model1, goto_model2,unwind_limit,cmdline.isset("refine"));
+    std::cout << "time: " << current_time()-start_time<<std::endl;
     return 0;
   }
 

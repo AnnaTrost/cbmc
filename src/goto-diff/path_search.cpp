@@ -15,7 +15,11 @@ Author: Daniel Kroening, kroening@kroening.com
 
 #include "path_search.h"
 #include "path_symex.h"
+#include "summaryDB.h"
+#include "path_symex_class.h"
+
 #include <iostream>
+#include <string>
 /*******************************************************************\
 
 Function: path_searcht::operator()
@@ -27,9 +31,43 @@ Function: path_searcht::operator()
  Purpose:
 
 \*******************************************************************/
+exprt path_searcht::get_path_summary(statet &state)
+{
+  exprt res=true_exprt();
+
+  std::vector<path_symex_step_reft> steps;
+  state.history.build_history(steps);
+
+  for(std::vector<path_symex_step_reft>::const_iterator s_it=
+      steps.begin(); s_it!=steps.end(); s_it++)
+  {
+    if((*s_it)->guard.is_not_nil())
+    {
+      res=and_exprt(res, (*s_it)->guard);
+    }
+
+    if((*s_it)->ssa_rhs.is_not_nil())
+    {
+      equal_exprt equality((*s_it)->ssa_lhs, (*s_it)->ssa_rhs);
+      res=and_exprt(res, equality);
+    }
+  }
+
+  return res;
+}
+
+void initialize_path_search(path_searcht &path_search)
+{
+  path_search.eager_infeasibility = true;
+  //path_search.set_unwind_limit(2);
+//  path_search.set_branch_bound(500);
+//  path_search.set_depth_limit(500);
+//  path_search.set_context_bound(5);
+}
 
 path_searcht::resultt path_searcht::operator()(
-  const goto_functionst &goto_functions, const irep_idt &entry_point, map<irep_idt, summaryt> &sums)
+    const goto_functionst &goto_functions,
+    const irep_idt &entry_point, bool old, bool refine)
 {
   locst locs(ns);
   var_mapt var_map(ns);
@@ -55,7 +93,8 @@ path_searcht::resultt path_searcht::operator()(
   // stop the time
   start_time=current_time();
   
-  summaryt& sum=sums.find(entry_point)->second;
+  SummaryDBt &summaryDB=SummaryDBt::getInstance();
+  summaryt& sum=summaryDB.get_summary(old,entry_point);
 
   //initialize_property_map(goto_functions);
   
@@ -77,7 +116,6 @@ path_searcht::resultt path_searcht::operator()(
     try
     {
       statet &state=tmp_queue.front();
-//      std::cout << state.get_pc()<<"\n";
       
       // record we have seen it
       loc_data[state.get_pc().loc_number].visited=true;
@@ -92,7 +130,7 @@ path_searcht::resultt path_searcht::operator()(
     
       if(drop_state(state))
       {
-        std::cout << "drop_state\n";
+//        std::cout << "drop_state\n";
         sum.add_path(state,false);
         number_of_dropped_states++;
         number_of_paths++;
@@ -102,7 +140,7 @@ path_searcht::resultt path_searcht::operator()(
       if(!state.is_executable())
       {
         sum.add_path(state,true);
-        std::cout << "not executable\n";
+//        std::cout << "not executable\n";
         number_of_paths++;
         continue;
       }
@@ -117,8 +155,6 @@ path_searcht::resultt path_searcht::operator()(
           continue;
         }
         else {
-//          sum.add_path(state,false);
-
 //          std::cout << "feasible\n";
         }
       }
@@ -147,8 +183,44 @@ path_searcht::resultt path_searcht::operator()(
 //      }
 
       // execute
-      path_symex(state, tmp_queue,sums);
+      path_symex(state, tmp_queue, old, refine);
       
+      const goto_programt::instructiont &instruction=
+          *state.get_instruction();
+      if(instruction.type==FUNCTION_CALL)
+      {
+        const code_function_callt &call=to_code_function_call(
+            instruction.code);
+        exprt f=state.read(call.function());
+        if(f.id()==ID_symbol)
+        {
+          const irep_idt &function_identifier=
+              to_symbol_expr(f).get_identifier();
+          if(refine)
+          {
+            assign_arguments(state, function_identifier, call);
+
+            summaryt& summary=summaryDB.get_summary(old,
+                function_identifier);
+            if(is_uncovered_feasible(state, summary.get_uncovered()))
+            {
+              std::cout<<"FUNCTION_CALL uncovered_feasible"
+                  <<std::endl;
+
+              path_searcht new_path_search(ns);
+              exprt precond=get_path_summary(state);
+              std::cout<<"precond "<<from_expr(ns, "", precond)
+                  <<std::endl;
+
+              initialize_path_search(new_path_search);
+              new_path_search.set_precondition(precond);
+              new_path_search(goto_functions, function_identifier,
+                  old, refine);
+            }
+          }
+        }
+      }
+
       // put at head of main queue
       queue.splice(queue.begin(), tmp_queue);
     }
@@ -172,6 +244,48 @@ path_searcht::resultt path_searcht::operator()(
 //  report_statistics();
   
   return number_of_failed_properties==0?SAFE:UNSAFE;
+}
+
+void path_searcht::assign_arguments(statet &state,
+    const irep_idt &function_identifier,
+    const code_function_callt &call)
+{
+  locst::function_mapt::const_iterator f_it=
+      state.locs.function_map.find(function_identifier);
+  if(f_it==state.locs.function_map.end())
+    throw "failed to find `"+id2string(function_identifier)
+        +"' in function_map";
+
+  path_symext path_sym(false, false);
+
+  const locst::function_entryt &function_entry=f_it->second;
+  const code_typet &code_type=function_entry.type;
+  const code_typet::parameterst &function_parameters=
+      code_type.parameters();
+  const exprt::operandst &call_arguments=call.arguments();
+  // now assign the argument values to parameters
+  for(unsigned i=0; i<call_arguments.size(); i++)
+  {
+    if(i<function_parameters.size())
+    {
+      const code_typet::parametert &function_parameter=
+          function_parameters[i];
+      irep_idt identifier=function_parameter.get_identifier();
+
+      if(identifier==irep_idt())
+        throw "function_call "+id2string(function_identifier)
+            +" no identifier for function parameter";
+
+      symbol_exprt lhs(identifier, function_parameter.type());
+      exprt rhs=call_arguments[i];
+
+      // lhs/rhs types might not match
+      if(lhs.type()!=rhs.type())
+        rhs.make_typecast(lhs.type());
+
+      path_sym.assign(state, lhs, rhs, false);
+    }
+  }
 }
 
 path_searcht::resultt path_searcht::operator()(
@@ -607,6 +721,30 @@ bool path_searcht::is_feasible(statet &state)
   
   return result;
 }
+
+bool path_searcht::is_uncovered_feasible(statet &state, exprt& uncovered)
+{
+  // take the time
+  absolute_timet sat_start_time=current_time();
+
+  satcheckt satcheck;
+  bv_pointerst bv_pointers(ns, satcheck);
+
+  satcheck.set_message_handler(get_message_handler());
+  bv_pointers.set_message_handler(get_message_handler());
+  if(precondition_set)
+  {
+    bv_pointers << precondition;
+  }
+  bv_pointers << uncovered;
+
+  bool result=state.is_feasible(bv_pointers);
+
+  sat_time+=current_time()-sat_start_time;
+
+  return result;
+}
+
 
 /*******************************************************************\
 

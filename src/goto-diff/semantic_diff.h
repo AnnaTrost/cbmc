@@ -15,6 +15,7 @@ class goto_modelt;
 
 void semantic_diff(
   goto_modelt &model_old,
-  goto_modelt &model_new);
+  goto_modelt &model_new,
+  unsigned unwind_limit, bool refine);
 
 #endif

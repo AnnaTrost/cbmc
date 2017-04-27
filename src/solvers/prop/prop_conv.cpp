@@ -66,7 +66,8 @@ Function: prop_convt::set_frozen
  Purpose:
 
 \*******************************************************************/
-
+#include <iostream>
+#include <langapi/language_util.h>
 void prop_convt::set_frozen(const literalt)
 {
   assert(false);
@@ -256,6 +257,7 @@ Function: prop_conv_solvert::convert
 
 literalt prop_conv_solvert::convert(const exprt &expr)
 {
+//  std::cout<<"convert "<<from_expr(expr)<<std::endl;
   if(!use_cache || 
      expr.id()==ID_symbol ||
      expr.id()==ID_constant) 
@@ -406,11 +408,14 @@ literalt prop_conv_solvert::convert_bool(const exprt &expr)
     if(op.size()!=2)
       throw "equality takes two operands";
 
+//    std::cout << "convert_bool equality\n";
     bool equal=(expr.id()==ID_equal);
 
     if(op[0].type().id()==ID_bool &&
        op[1].type().id()==ID_bool)
     {
+//      std::cout << "convert_bool equality2\n";
+
       literalt tmp1=convert(op[0]),
                tmp2=convert(op[1]);
       return
@@ -422,6 +427,7 @@ literalt prop_conv_solvert::convert_bool(const exprt &expr)
     //const let_exprt &let_expr=to_let_expr(expr);
     throw "let is todo";
   }
+//  std::cout << "convert_bool 3\n";
 
   return convert_rest(expr);
 }
@@ -440,6 +446,8 @@ Function: prop_conv_solvert::convert_rest
 
 literalt prop_conv_solvert::convert_rest(const exprt &expr)
 {
+//  std::cout << "convert_rest\n";
+
   // fall through
   ignoring(expr);
   return prop.new_variable();
@@ -495,8 +503,10 @@ Function: prop_conv_solvert::set_to
 
 \*******************************************************************/
 
+
 void prop_conv_solvert::set_to(const exprt &expr, bool value)
 {
+//  std::cout <<"annat set_to "<< from_expr(expr)<<" to "<<value<<std::endl;
   if(expr.type().id()!=ID_bool)
   {
     std::string msg="prop_convt::set_to got "
@@ -513,6 +523,7 @@ void prop_conv_solvert::set_to(const exprt &expr, bool value)
       boolean=false;
       break;
     }
+//  std::cout <<"annat set_to boolean "<< boolean<<std::endl;
 
   if(boolean)
   {
@@ -572,6 +583,8 @@ void prop_conv_solvert::set_to(const exprt &expr, bool value)
       }
       else
       {
+//        std::cout <<"annat set_to set_to_false "<<std::endl;
+
         // set_to_false
         if(expr.id()==ID_implies) // !(a=>b)  ==  (a && !b)
         {
@@ -589,6 +602,8 @@ void prop_conv_solvert::set_to(const exprt &expr, bool value)
       }
     }
   }
+
+//  std::cout <<"annat fall back set_to "<< expr.pretty()<<" to "<<value<<std::endl;
 
   // fall back to convert
   prop.l_set_to(convert(expr), value);

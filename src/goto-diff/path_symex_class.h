@@ -14,7 +14,7 @@ Author: Daniel Kroening, kroening@kroening.com
 class path_symext
 {
 public:
-  inline path_symext(map<irep_idt, summaryt> &_sums) : sums(_sums)
+  inline path_symext(bool _old, bool _refine) : old(_old), refine(_refine)
   {
   }
   
@@ -27,6 +27,8 @@ public:
   void do_goto(
     path_symex_statet &state,
     bool taken);
+
+  void do_assign_function_call(path_symex_statet &state);
     
   virtual void do_assert_fail(path_symex_statet &state)
   {
@@ -40,9 +42,14 @@ public:
   }  
   
   typedef path_symex_stept stept;
-
+  void assign(
+     path_symex_statet &state,
+     const exprt &lhs,
+     const exprt &rhs,
+     bool increment=true);
 protected:
-  map<irep_idt, summaryt> &sums;
+  bool old;
+  bool refine;
   void do_goto(
     path_symex_statet &state,
     std::list<path_symex_statet> &further_states);
@@ -71,10 +78,7 @@ protected:
     const exprt &lhs,
     const side_effect_exprt &code);
 
-  void assign(
-    path_symex_statet &state,
-    const exprt &lhs,
-    const exprt &rhs);
+
 
   inline void assign(
     path_symex_statet &state,
@@ -87,7 +91,8 @@ protected:
     path_symex_statet &state,
     exprt::operandst &guard, // instantiated
     const exprt &ssa_lhs, // instantiated, recursion here
-    const exprt &ssa_rhs); // instantiated
+    const exprt &ssa_rhs, // instantiated
+    bool increment);
 
   static bool propagate(const exprt &src);
 };

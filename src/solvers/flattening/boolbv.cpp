@@ -711,13 +711,17 @@ bool boolbvt::boolbv_set_equality_to_true(const equal_exprt &expr)
      type.id()!=ID_bool)
   {
     // see if it is an unbounded array
-    if(is_unbounded_array(type))
+    if(is_unbounded_array(type)) {
+//      std::cout << "anna unbounded_array "<<expr.lhs().get(ID_identifier)<<std::endl;
       return true;
+    }
+
 
     const bvt &bv1=convert_bv(expr.rhs());
     
     const irep_idt &identifier=
       to_symbol_expr(expr.lhs()).get_identifier();
+//    std::cout << "anna eq "<<identifier <<" type: "<<type.id() <<" size: "<<map.get_map_entry(identifier, type).literal_map.size()<<std::endl;
 
     map.set_literals(identifier, type, bv1);
 
@@ -725,6 +729,9 @@ bool boolbvt::boolbv_set_equality_to_true(const equal_exprt &expr)
 
     return false;
   }
+//  if(expr.lhs().id()==ID_symbol)
+//    std::cout << "anna else "<<expr.lhs().get(ID_identifier)<<" type: "<<type.id()<<std::endl;
+
 
   return true;
 }

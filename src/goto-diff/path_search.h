@@ -33,16 +33,19 @@ public:
     unwind_limit_set(false),
     branch_bound_set(false),
     precondition_set(false),
-    search_heuristic(search_heuristict::DFS)
+    search_heuristic(search_heuristict::BFS)
   {
   }
 
   virtual resultt operator()(
     const goto_functionst &goto_functions,
     const irep_idt &entry_point,
-		map<irep_idt, summaryt> &sums);
+    bool old,
+	bool refine=false);
   virtual resultt operator()(
       const goto_functionst &goto_functions);
+
+
     
   void set_depth_limit(unsigned limit)
   {
@@ -72,6 +75,11 @@ public:
   {
     precondition_set=true;
     precondition=precond;
+  }
+
+  void unset_precondition(exprt precond)
+  {
+    precondition_set=false;
   }
 
   bool show_vcc;
@@ -114,6 +122,12 @@ public:
 protected:
   typedef path_symex_statet statet;
 
+
+  exprt get_path_summary(statet &state);
+  void assign_arguments(statet &state,
+      const irep_idt &function_identifier,
+      const code_function_callt &call);
+
   // State queue. Iterators are stable.
   // The states most recently executed are at the head.
   typedef std::list<statet> queuet;
@@ -134,6 +148,7 @@ protected:
   
   void check_assertion(statet &state);
   bool is_feasible(statet &state);
+  bool is_uncovered_feasible(statet &state, exprt &uncovered);
   void do_show_vcc(statet &state);
   
   bool drop_state(const statet &state) const;

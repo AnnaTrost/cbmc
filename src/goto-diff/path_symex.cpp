@@ -20,6 +20,8 @@ Author: Daniel Kroening, kroening@kroening.com
 
 #include "path_symex_class.h"
 
+#include "summaryDB.h"
+
 //#define DEBUG
 
 #ifdef DEBUG
@@ -107,7 +109,8 @@ Function: path_symext::assign
 void path_symext::assign(
   path_symex_statet &state,
   const exprt &lhs,
-  const exprt &rhs)
+  const exprt &rhs,
+  bool increment)
 {
   if(rhs.id()==ID_side_effect) // catch side effects on rhs
   {
@@ -139,7 +142,7 @@ void path_symext::assign(
 
   // start recursion on lhs
   exprt::operandst _guard; // start with empty guard
-  assign_rec(state, _guard, ssa_lhs, ssa_rhs);
+  assign_rec(state, _guard, ssa_lhs, ssa_rhs,increment);
 }
 
 /*******************************************************************\
@@ -306,7 +309,8 @@ void path_symext::assign_rec(
   path_symex_statet &state,
   exprt::operandst &guard, 
   const exprt &ssa_lhs, 
-  const exprt &ssa_rhs)
+  const exprt &ssa_rhs,
+  bool increment)
 {
   //const typet &ssa_lhs_type=state.var_map.ns.follow(ssa_lhs.type());
   
@@ -333,7 +337,8 @@ void path_symext::assign_rec(
     assert(var_info.full_identifier==full_identifier);
 
     // increase the SSA counter and produce new SSA symbol expression
-    var_info.increment_ssa_counter();
+    if(increment)
+      var_info.increment_ssa_counter();
     symbol_exprt new_lhs=var_info.ssa_symbol();
 
     #ifdef DEBUG
@@ -402,7 +407,7 @@ void path_symext::assign_rec(
             
       with_exprt new_rhs(struct_op, member_name, ssa_rhs);
       
-      assign_rec(state, guard, struct_op, new_rhs);
+      assign_rec(state, guard, struct_op, new_rhs,increment);
     }
     else if(compound_type.id()==ID_union)
     {
@@ -411,10 +416,10 @@ void path_symext::assign_rec(
 
       byte_extract_exprt new_lhs(byte_update_id(), struct_op, offset, ssa_rhs.type());
       
-      assign_rec(state, guard, new_lhs, ssa_rhs);
+      assign_rec(state, guard, new_lhs, ssa_rhs,increment);
     }
     else
-      assign_rec(state, guard, struct_op, ssa_rhs);
+      assign_rec(state, guard, struct_op, ssa_rhs,increment);
 //      throw "assign_rec: member expects struct or union type";
   }
   else if(ssa_lhs.id()==ID_index)
@@ -444,12 +449,12 @@ void path_symext::assign_rec(
 
     // true
     guard.push_back(cond);
-    assign_rec(state, guard, lhs_if_expr.true_case(), ssa_rhs);
+    assign_rec(state, guard, lhs_if_expr.true_case(), ssa_rhs,increment);
     guard.pop_back();
     
     // false
     guard.push_back(not_exprt(cond));
-    assign_rec(state, guard, lhs_if_expr.false_case(), ssa_rhs);
+    assign_rec(state, guard, lhs_if_expr.false_case(), ssa_rhs,increment);
     guard.pop_back();
   }
   else if(ssa_lhs.id()==ID_byte_extract_little_endian ||
@@ -483,7 +488,7 @@ void path_symext::assign_rec(
     
     const exprt new_lhs=byte_extract_expr.op();
 
-    assign_rec(state, guard, new_lhs, new_rhs);
+    assign_rec(state, guard, new_lhs, new_rhs,increment);
   }
   else if(ssa_lhs.id()==ID_struct)
   {
@@ -503,7 +508,7 @@ void path_symext::assign_rec(
         ssa_rhs.is_nil()?ssa_rhs:
         simplify_expr(member_exprt(ssa_rhs, components[i].get_name(), components[i].type()),
           state.var_map.ns);
-      assign_rec(state, guard, operands[i], new_rhs);
+      assign_rec(state, guard, operands[i], new_rhs,increment);
     }
   }
   else if(ssa_lhs.id()==ID_array)
@@ -525,7 +530,7 @@ void path_symext::assign_rec(
         ssa_rhs.is_nil()?ssa_rhs:
         simplify_expr(index_exprt(ssa_rhs, from_integer(i, index_type()), array_type.subtype()),
           state.var_map.ns);
-      assign_rec(state, guard, operands[i], new_rhs);
+      assign_rec(state, guard, operands[i], new_rhs,increment);
     }
   }
   else if(ssa_lhs.id()==ID_vector)
@@ -542,7 +547,7 @@ void path_symext::assign_rec(
         ssa_rhs.is_nil()?ssa_rhs:
         simplify_expr(index_exprt(ssa_rhs, from_integer(i, index_type()), vector_type.subtype()),
           state.var_map.ns);
-      assign_rec(state, guard, operands[i], new_rhs);
+      assign_rec(state, guard, operands[i], new_rhs,increment);
     }
   }
   else if(ssa_lhs.id()==ID_string_constant ||
@@ -590,106 +595,159 @@ void path_symext::function_call_rec(
     const irep_idt &function_identifier=
       to_symbol_expr(function).get_identifier();
 
-    if (sums.find(function_identifier)==sums.end())
-    	throw "failed to find `"+id2string(function_identifier)+"' in function_map";
+//    if (sums.find(function_identifier)==sums.end())
+//    	throw "failed to find `"+id2string(function_identifier)+"' in function_map";
 
-    state.history->guard=sums.find(function_identifier)->second.get_formula();
-
-    if(call.lhs().is_not_nil())
-            assign(state, call.lhs(), nil_exprt());
-
-          state.next_pc();
-          return;
-
-
-    // find the function
     locst::function_mapt::const_iterator f_it=
-      state.locs.function_map.find(function_identifier);
+        state.locs.function_map.find(function_identifier);
 
     if(f_it==state.locs.function_map.end())
-      throw "failed to find `"+id2string(function_identifier)+"' in function_map";
-  
+      throw "failed to find `"+id2string(function_identifier)
+          +"' in function_map";
+
     const locst::function_entryt &function_entry=f_it->second;
-
-    loc_reft function_entry_point=function_entry.first_loc;
-  
-    // do we have a body?
-    if(function_entry_point==loc_reft())
-    {
-      // no body
-      
-      // this is a skip
-      if(call.lhs().is_not_nil())
-        assign(state, call.lhs(), nil_exprt());
-
-      state.next_pc();
-      return;
-    }
-  
-    // push a frame on the call stack
-    path_symex_statet::threadt &thread=state.threads[state.get_current_thread()];
-    thread.call_stack.push_back(path_symex_statet::framet());
-    thread.call_stack.back().current_function=function_identifier;
-    thread.call_stack.back().return_location=thread.pc.next_loc();
-    thread.call_stack.back().return_lhs=call.lhs();
-    thread.call_stack.back().return_rhs=nil_exprt();
-
-    #if 0
-    for(loc_reft l=function_entry_point; ; ++l)
-    {
-      if(locs[l].target->is_end_function()) break;
-      if(locs[l].target->is_decl())
-      {
-        // make sure we have the local in the var_map
-        state.
-      }
-    }
-    
-    // save the locals into the frame
-    for(locst::local_variablest::const_iterator
-        it=function_entry.local_variables.begin();
-        it!=function_entry.local_variables.end();
-        it++)
-    {
-      unsigned nr=state.var_map[*it].number;
-      thread.call_stack.back().saved_local_vars[nr]=thread.local_vars[nr];
-    }    
-    #endif
-
     const code_typet &code_type=function_entry.type;
-
     const code_typet::parameterst &function_parameters=code_type.parameters();
-
     const exprt::operandst &call_arguments=call.arguments();
-  
     // now assign the argument values to parameters
     for(unsigned i=0; i<call_arguments.size(); i++)
     {
       if(i<function_parameters.size())
       {
-        const code_typet::parametert &function_parameter=function_parameters[i];
+        const code_typet::parametert &function_parameter=
+            function_parameters[i];
         irep_idt identifier=function_parameter.get_identifier();
 
         if(identifier==irep_idt())
-          throw "function_call " + id2string(function_identifier) + " no identifier for function parameter";
+          throw "function_call "+id2string(function_identifier)
+              +" no identifier for function parameter";
 
         symbol_exprt lhs(identifier, function_parameter.type());
         exprt rhs=call_arguments[i];
-        
+
         // lhs/rhs types might not match
         if(lhs.type()!=rhs.type())
           rhs.make_typecast(lhs.type());
-            
-        assign(state, lhs, rhs);
+
+        assign(state, lhs, rhs,false);
       }
     }
 
-    // update statistics
-    state.recursion_map[function_identifier]++;
+//    if(call.lhs().is_not_nil())
+//            assign(state, call.lhs(), nil_exprt());
 
-    // set the new PC
-    thread.pc=function_entry_point;
+    SummaryDBt &summaryDB=SummaryDBt::getInstance();
+    summaryt summary=summaryDB.get_summary(old,function_identifier);
+//    if(refine&&is_uncovered_feasible(state, summary.get_uncovered()))
+//    {
+//      std::cout<<"FUNCTION_CALL uncovered_feasible"<<std::endl;
+//      path_searcht new_path_search(ns);
+//      exprt precond=get_path_summary(next_state);
+//      std::cout<<"precond "<<from_expr(ns, "", precond)<<std::endl;
+//
+//      new_path_search.set_precondition(precond);
+//      new_path_search(goto_functions, function_identifier);
+//    }
+
+
+    state.history->func_call_guard=summary.get_formula();
+    state.history->func_call_uncovered=summary.get_uncovered();
+
+//    if(!refine||!is_uncovered_feasible(state, summary.get_uncovered()))
+    state.next_pc();
+    return;
   }
+
+//
+//    // find the function
+//    locst::function_mapt::const_iterator f_it=
+//      state.locs.function_map.find(function_identifier);
+//
+//
+//    if(f_it==state.locs.function_map.end())
+//      throw "failed to find `"+id2string(function_identifier)+"' in function_map";
+//
+//    const locst::function_entryt &function_entry=f_it->second;
+//
+//    loc_reft function_entry_point=function_entry.first_loc;
+//
+//    // do we have a body?
+//    if(function_entry_point==loc_reft())
+//    {
+//      // no body
+//
+//      // this is a skip
+//      if(call.lhs().is_not_nil())
+//        assign(state, call.lhs(), nil_exprt());
+//
+//      state.next_pc();
+//      return;
+//    }
+//
+//    // push a frame on the call stack
+//    path_symex_statet::threadt &thread=state.threads[state.get_current_thread()];
+//    thread.call_stack.push_back(path_symex_statet::framet());
+//    thread.call_stack.back().current_function=function_identifier;
+//    thread.call_stack.back().return_location=thread.pc.next_loc();
+//    thread.call_stack.back().return_lhs=call.lhs();
+//    thread.call_stack.back().return_rhs=nil_exprt();
+//
+//    #if 0
+//    for(loc_reft l=function_entry_point; ; ++l)
+//    {
+//      if(locs[l].target->is_end_function()) break;
+//      if(locs[l].target->is_decl())
+//      {
+//        // make sure we have the local in the var_map
+//        state.
+//      }
+//    }
+//
+//    // save the locals into the frame
+//    for(locst::local_variablest::const_iterator
+//        it=function_entry.local_variables.begin();
+//        it!=function_entry.local_variables.end();
+//        it++)
+//    {
+//      unsigned nr=state.var_map[*it].number;
+//      thread.call_stack.back().saved_local_vars[nr]=thread.local_vars[nr];
+//    }
+//    #endif
+//
+//    const code_typet &code_type=function_entry.type;
+//
+//    const code_typet::parameterst &function_parameters=code_type.parameters();
+//
+//    const exprt::operandst &call_arguments=call.arguments();
+//
+//    // now assign the argument values to parameters
+//    for(unsigned i=0; i<call_arguments.size(); i++)
+//    {
+//      if(i<function_parameters.size())
+//      {
+//        const code_typet::parametert &function_parameter=function_parameters[i];
+//        irep_idt identifier=function_parameter.get_identifier();
+//
+//        if(identifier==irep_idt())
+//          throw "function_call " + id2string(function_identifier) + " no identifier for function parameter";
+//
+//        symbol_exprt lhs(identifier, function_parameter.type());
+//        exprt rhs=call_arguments[i];
+//
+//        // lhs/rhs types might not match
+//        if(lhs.type()!=rhs.type())
+//          rhs.make_typecast(lhs.type());
+//
+//        assign(state, lhs, rhs);
+//      }
+//    }
+//
+//    // update statistics
+//    state.recursion_map[function_identifier]++;
+//
+//    // set the new PC
+//    thread.pc=function_entry_point;
+//  }
   else if(function.id()==ID_dereference)
   {
     // should not happen, we read() before
@@ -699,9 +757,9 @@ void path_symext::function_call_rec(
   {
     const if_exprt &if_expr=to_if_expr(function);
     exprt guard=if_expr.cond();
-    
+
     // add a 'further state' for the false-case
-    
+
     {
       further_states.push_back(state);
       path_symex_statet &false_state=further_states.back();
@@ -1114,12 +1172,20 @@ Function: path_symex
 void path_symex(
   path_symex_statet &state,
   std::list<path_symex_statet> &further_states,
-	map<irep_idt, summaryt> &sums)
+  bool old, bool refine)
 {
-  path_symext path_symex(sums);
+  path_symext path_symex(old,refine);
   path_symex(state, further_states);
 }
 
+
+//void assign_function_call(
+//  path_symex_statet &state,
+//  map<irep_idt, summaryt> &sums)
+//{
+//  path_symext path_symex(sums);
+//  path_symex.do_assign_function_call(state);
+//}
 /*******************************************************************\
 
 Function: path_symex

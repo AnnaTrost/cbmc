@@ -25,8 +25,9 @@ class optionst;
   "(json-ui)" \
   "(show-goto-functions)" \
   "(verbosity):(version)" \
+  "(unwind-limit):(unwindset)" \
   "u(unified)(change-impact)(forward-impact)(backward-impact)(semantic-diff)" \
-  "(compact-output)"
+  "(compact-output)(refine)"
 
 class goto_diff_parse_optionst:
   public parse_options_baset,

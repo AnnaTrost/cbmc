@@ -102,6 +102,7 @@ public:
   exprt guard, ssa_rhs;
   exprt full_lhs;
   symbol_exprt ssa_lhs;
+  exprt func_call_guard, func_call_uncovered;
 
   bool hidden; 
   
@@ -110,6 +111,8 @@ public:
     guard(nil_exprt()),
     ssa_rhs(nil_exprt()),
     full_lhs(nil_exprt()),
+    func_call_guard(nil_exprt()),
+    func_call_uncovered(nil_exprt()),
     hidden(false)
   {
   }
